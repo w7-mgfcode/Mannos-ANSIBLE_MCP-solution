@@ -12,19 +12,40 @@ An intelligent Ansible playbook generator that leverages the Model Context Proto
 
 **🆕 v2.0.0**: Full MCP 2025-03-26 specification compliance with tool annotations, enhanced error handling, and McpServer high-level API.
 
+**🔒 v2.1.0**: Comprehensive security hardening, infrastructure integration, and testing infrastructure.
+
 ## ✨ Features
 
+### Core Features
 - 🤖 **AI-Powered Generation**: Convert natural language descriptions into Ansible playbooks
 - ✅ **Automated Validation**: Built-in YAML syntax checking and Ansible-lint integration
 - 🔧 **15+ Templates**: Pre-built templates for common infrastructure patterns
-- 🔒 **Security First**: HashiCorp Vault integration for secrets management
-- 📊 **Full Observability**: Prometheus metrics and Grafana dashboards
-- 🔄 **GitOps Ready**: Git integration for version control and CI/CD
-- 🐳 **Containerized**: Fully dockerized deployment
 - 🎯 **MCP Integration**: Native support for Model Context Protocol
 - 📚 **Prompt Template Library**: Optimized templates with few-shot learning and chain-of-thought reasoning
 - 🧠 **Context Enrichment**: Environment-specific hints and best practices injection
 - 📋 **Template Versioning**: Full version control and changelog tracking for templates
+
+### Security Features (NEW)
+- 🔐 **Command Injection Protection**: All shell commands use safe execFile with argument arrays
+- 🛡️ **Path Traversal Prevention**: Validates all file paths against allowed directories
+- 🔍 **Secrets Detection**: Scans playbooks for hardcoded credentials (AWS keys, passwords, tokens, private keys)
+- ⏱️ **Rate Limiting**: Configurable request throttling (default: 100 req/min)
+- 📁 **Secure File Permissions**: Generated playbooks use 0o600 permissions
+- 🏷️ **Input Sanitization**: Tags and user inputs sanitized to prevent injection
+
+### Infrastructure Integration (NEW)
+- 🔒 **HashiCorp Vault**: Full API integration for dynamic secrets management
+- 💾 **Redis Integration**: Connection pooling and caching support
+- 📊 **Prometheus Metrics**: 7 custom metrics (counters, histograms, gauges)
+- 🏥 **Health Checks**: `/health` endpoint with dependency status
+- 📈 **Metrics Endpoint**: `/metrics` endpoint for Prometheus scraping
+- 📝 **Winston Logging**: Structured JSON logging with file transport
+
+### Observability
+- 📊 **Full Observability**: Prometheus metrics and Grafana dashboards
+- 🔄 **GitOps Ready**: Git integration for version control and CI/CD
+- 🐳 **Containerized**: Fully dockerized deployment
+- 🧪 **Testing Infrastructure**: Jest (TypeScript) and pytest (Python) test suites
 
 ## 📋 Architecture Overview
 
@@ -190,6 +211,102 @@ curl -X POST http://localhost:3000/execute \
     }
   }'
 ```
+
+## 🔐 Security Configuration
+
+### Environment Variables
+
+```bash
+# Security Settings
+MCP_API_KEY=your-api-key           # API key for authentication
+MCP_ENABLE_AUTH=true               # Enable authentication (default: false)
+
+# Infrastructure Integration
+REDIS_HOST=localhost               # Redis host (default: localhost)
+REDIS_PORT=6379                    # Redis port (default: 6379)
+VAULT_ADDR=http://localhost:8200   # HashiCorp Vault address
+VAULT_TOKEN=your-vault-token       # Vault authentication token
+
+# Monitoring
+METRICS_PORT=9090                  # Prometheus metrics port (default: 9090)
+LOG_LEVEL=info                     # Logging level (debug, info, warn, error)
+
+# AI Provider
+AI_PROVIDER=openai                 # AI provider (openai, anthropic, gemini, ollama)
+AI_MODEL=gpt-4.1                   # Model to use
+OPENAI_API_KEY=sk-your-key         # API key for AI provider
+```
+
+### Health Check & Metrics
+
+```bash
+# Check server health
+curl http://localhost:9090/health
+
+# Response example:
+{
+  "status": "healthy",
+  "checks": {
+    "redis": { "status": "healthy", "latency": 2 },
+    "vault": { "status": "healthy", "latency": 15 },
+    "aiProvider": { "status": "healthy" }
+  },
+  "timestamp": "2025-11-18T12:00:00.000Z"
+}
+
+# Get Prometheus metrics
+curl http://localhost:9090/metrics
+```
+
+### Prometheus Metrics
+
+| Metric Name | Type | Description |
+|-------------|------|-------------|
+| `ansible_mcp_playbooks_generated_total` | Counter | Total playbooks generated |
+| `ansible_mcp_playbooks_executed_total` | Counter | Total playbooks executed |
+| `ansible_mcp_validation_errors_total` | Counter | Validation error count |
+| `ansible_mcp_execution_duration_seconds` | Histogram | Playbook execution duration |
+| `ansible_mcp_secrets_detected_total` | Counter | Potential secrets detected |
+| `ansible_mcp_auth_failures_total` | Counter | Authentication failures |
+| `ansible_mcp_active_connections` | Gauge | Active connections |
+
+### Secrets Detection
+
+The server automatically scans playbooks for potential hardcoded secrets:
+- AWS Access Keys (`AKIA...`)
+- Passwords and secrets
+- Private keys (RSA, EC, DSA, OpenSSH)
+- GitHub tokens (`ghp_`, `ghs_`)
+- Slack tokens
+- JWTs
+- Bearer tokens
+
+Detected secrets are reported in the response with line numbers for remediation.
+
+## 🧪 Testing
+
+### Run TypeScript Tests (Jest)
+
+```bash
+npm test                    # Run all tests
+npm test -- --coverage      # With coverage report
+npm test -- --watch         # Watch mode
+```
+
+### Run Python Tests (pytest)
+
+```bash
+pip install pytest pyyaml
+python -m pytest tests/ -v  # Run all tests
+python -m pytest tests/ -v --tb=short  # Short traceback
+```
+
+### Test Coverage
+
+- **Security tests**: Path validation, secrets detection, rate limiting
+- **Validation tests**: YAML syntax, best practices, input sanitization
+- **Integration tests**: Prompt analysis, template generation
+- **Edge case tests**: Error handling, Unicode, empty inputs
 
 ## 📚 Prompt Template Library
 
