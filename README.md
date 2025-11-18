@@ -19,6 +19,9 @@ An intelligent Ansible playbook generator that leverages the Model Context Proto
 - 🔄 **GitOps Ready**: Git integration for version control and CI/CD
 - 🐳 **Containerized**: Fully dockerized deployment
 - 🎯 **MCP Integration**: Native support for Model Context Protocol
+- 📚 **Prompt Template Library**: Optimized templates with few-shot learning and chain-of-thought reasoning
+- 🧠 **Context Enrichment**: Environment-specific hints and best practices injection
+- 📋 **Template Versioning**: Full version control and changelog tracking for templates
 
 ## 📋 Architecture Overview
 
@@ -181,6 +184,99 @@ curl -X POST http://localhost:3000/execute \
       "context": {
         "environment": "production"
       }
+    }
+  }'
+```
+
+## 📚 Prompt Template Library
+
+The Prompt Template Library provides optimized templates with few-shot learning examples, chain-of-thought reasoning, and context enrichment for consistent, production-ready playbook generation.
+
+### Available Template Categories
+
+| Category | Template ID | Description |
+|----------|-------------|-------------|
+| Kubernetes | `kubernetes-deployment` | K8s deployments with scaling, health checks, HPA |
+| Docker | `docker-setup` | Docker & Compose installation with security |
+| Security | `security-hardening` | CIS benchmark-based system hardening |
+| Database | `database-setup` | PostgreSQL/MySQL with replication & backup |
+| Monitoring | `monitoring-stack` | Prometheus + Grafana deployment |
+| CI/CD | `cicd-pipeline` | Jenkins/GitLab CI setup |
+| Cloud | `cloud-infrastructure` | AWS/Azure/GCP provisioning |
+| Network | `network-configuration` | Load balancers, SSL, routing |
+
+### Using Templates
+
+```bash
+# List available templates
+curl -X POST http://localhost:3000/execute \
+  -H "Content-Type: application/json" \
+  -d '{
+    "tool": "list_prompt_templates",
+    "arguments": {
+      "category": "kubernetes"
+    }
+  }'
+
+# Generate with optimized template
+curl -X POST http://localhost:3000/execute \
+  -H "Content-Type: application/json" \
+  -d '{
+    "tool": "generate_with_template",
+    "arguments": {
+      "prompt": "Deploy a web app with 5 replicas and auto-scaling",
+      "template_id": "kubernetes-deployment",
+      "context": {
+        "environment": "production",
+        "target_hosts": "k8s_cluster"
+      }
+    }
+  }'
+
+# Enrich a prompt with few-shot examples
+curl -X POST http://localhost:3000/execute \
+  -H "Content-Type: application/json" \
+  -d '{
+    "tool": "enrich_prompt",
+    "arguments": {
+      "prompt": "Setup PostgreSQL with replication",
+      "template_id": "database-setup"
+    }
+  }'
+```
+
+### Template Features
+
+- **Few-Shot Learning**: Each template includes 1-2 complete example playbooks
+- **Chain-of-Thought Reasoning**: Step-by-step reasoning patterns for systematic generation
+- **Context Enrichment**: Environment-specific hints (production, staging, development)
+- **Best Practices**: Embedded DevOps best practices for each category
+- **Version Control**: Templates are versioned with changelog tracking
+
+### Template Versioning
+
+```bash
+# Get template version history
+curl -X POST http://localhost:3000/execute \
+  -H "Content-Type: application/json" \
+  -d '{
+    "tool": "get_template_history",
+    "arguments": {
+      "template_id": "kubernetes-deployment"
+    }
+  }'
+
+# Update a template
+curl -X POST http://localhost:3000/execute \
+  -H "Content-Type: application/json" \
+  -d '{
+    "tool": "update_template_version",
+    "arguments": {
+      "template_id": "kubernetes-deployment",
+      "updates": {
+        "best_practices": ["New practice 1", "New practice 2"]
+      },
+      "change_description": ["Added new best practices for resource limits"]
     }
   }'
 ```
