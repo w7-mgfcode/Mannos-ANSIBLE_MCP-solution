@@ -1,7 +1,8 @@
 # CLAUDE.md - AI Assistant Guide for Ansible MCP Server
 
-> **Last Updated**: 2025-11-14
+> **Last Updated**: 2025-11-18
 > **Repository**: Mannos-ANSIBLE_MCP-solution
+> **Version**: 2.0.0 (MCP SDK v1.22.0)
 > **Purpose**: Guide AI assistants working with this Ansible MCP Server codebase
 
 ---
@@ -42,12 +43,18 @@ This is an **Ansible MCP (Model Context Protocol) Server** that enables AI-power
 - **Docker**: Containerized deployment via Docker Compose
 
 **Key Dependencies:**
-- `@modelcontextprotocol/sdk` v0.5.0: MCP protocol implementation
+- `@modelcontextprotocol/sdk` v1.22.0: MCP protocol implementation (McpServer high-level API)
 - `js-yaml`: YAML parsing and generation
-- `zod`: Schema validation
+- `zod`: Schema validation with `.describe()` for self-documenting parameters
 - `winston`: Logging
 - `fastapi`: Python web framework (AI service)
 - `openai/langchain`: AI integration for smart generation
+
+**MCP 2025-03-26 Compliance:**
+- Tool annotations (readOnlyHint, destructiveHint, idempotentHint)
+- Proper `CallToolResult` with `isError` for error handling
+- Server capabilities with `listChanged` support
+- Server instructions for client guidance
 
 **Infrastructure:**
 - Redis: Caching and job queue
