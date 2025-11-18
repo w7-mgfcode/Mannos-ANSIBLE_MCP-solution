@@ -21,6 +21,14 @@ services:
       - ANSIBLE_HOST_KEY_CHECKING=False
       - ANSIBLE_INVENTORY=/workspace/inventory
       - LOG_LEVEL=info
+      # AI Provider Configuration
+      - AI_PROVIDER=${AI_PROVIDER:-openai}
+      - AI_MODEL=${AI_MODEL:-gpt-4}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY:-}
+      - AI_BASE_URL=${AI_BASE_URL:-}
     networks:
       - ansible-network
     depends_on:

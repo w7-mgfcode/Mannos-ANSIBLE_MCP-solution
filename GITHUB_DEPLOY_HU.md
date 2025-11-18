@@ -64,13 +64,13 @@ git clone https://github.com/w7-mgfcode/Mannos-ANSIBLE_MCP-solution.git
 cd Mannos-ANSIBLE_MCP-solution
 
 # 2. Szolgáltatások indítása
-docker-compose up -d
+docker compose up -d
 
 # 3. Státusz ellenőrzése
-docker-compose ps
+docker compose ps
 
 # 4. Logok megtekintése
-docker-compose logs -f ansible-mcp
+docker compose logs -f ansible-mcp
 ```
 
 ### Elérhető felületek:
@@ -95,7 +95,7 @@ curl -X POST http://localhost:3000/execute \
 
 ### Leállítás:
 ```bash
-docker-compose down
+docker compose down
 ```
 
 ---
@@ -407,7 +407,7 @@ Elérhető metrikák:
 
 ```bash
 # Docker Compose
-docker-compose logs -f ansible-mcp
+docker compose logs -f ansible-mcp
 
 # Standalone Docker
 docker logs -f ansible-mcp
@@ -448,7 +448,7 @@ sudo chown -R $USER:$USER playbooks/ inventory/ logs/
 echo $GITHUB_TOKEN | docker login ghcr.io -u FELHASZNÁLÓNÉV --password-stdin
 
 # Vagy build-eld lokálisan
-docker-compose build
+docker compose build
 ```
 
 ### Hiba: Codespace nem indul
@@ -515,9 +515,9 @@ chmod +x start.sh
 Add hozzá a `~/.bashrc` vagy `~/.zshrc` fájlhoz:
 
 ```bash
-alias ansible-mcp-start='docker-compose up -d'
-alias ansible-mcp-stop='docker-compose down'
-alias ansible-mcp-logs='docker-compose logs -f ansible-mcp'
+alias ansible-mcp-start='docker compose up -d'
+alias ansible-mcp-stop='docker compose down'
+alias ansible-mcp-logs='docker compose logs -f ansible-mcp'
 alias ansible-mcp-generate='curl -X POST http://localhost:3000/execute -H "Content-Type: application/json" -d'
 ```
 
