@@ -5,7 +5,7 @@ import type {
   ToolAnnotations,
   ServerCapabilities
 } from '@modelcontextprotocol/sdk/types.js';
-import { exec } from 'child_process';
+import { execFile } from 'child_process';
 import { promisify } from 'util';
 import * as fs from 'fs/promises';
 import * as path from 'path';
@@ -18,8 +18,161 @@ import {
   EnrichedPrompt
 } from './prompt_templates.js';
 import { AIProvider, createProviderFromEnv } from './providers/index.js';
+import winston from 'winston';
+import { default as RedisModule } from 'ioredis';
+import Vault from 'node-vault';
+import { Registry, Counter, Histogram, Gauge, collectDefaultMetrics } from 'prom-client';
+import * as http from 'http';
 
-const execAsync = promisify(exec);
+// Handle both ESM and CommonJS module formats
+const Redis = (RedisModule as any).default || RedisModule;
+type RedisClient = InstanceType<typeof Redis>;
+
+const execFileAsync = promisify(execFile);
+
+// =============================================================================
+// SECURITY CONFIGURATION
+// =============================================================================
+
+interface SecurityConfig {
+  apiKey: string | null;
+  enableAuth: boolean;
+  allowedPaths: string[];
+  maxPlaybookSize: number;
+  rateLimitPerMinute: number;
+}
+
+const securityConfig: SecurityConfig = {
+  apiKey: process.env.MCP_API_KEY || null,
+  enableAuth: process.env.MCP_ENABLE_AUTH === 'true',
+  allowedPaths: ['/tmp/ansible-mcp', '/workspace/playbooks'],
+  maxPlaybookSize: 1024 * 1024, // 1MB
+  rateLimitPerMinute: 100,
+};
+
+// =============================================================================
+// LOGGING CONFIGURATION
+// =============================================================================
+
+const logger = winston.createLogger({
+  level: process.env.LOG_LEVEL || 'info',
+  format: winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.errors({ stack: true }),
+    winston.format.json()
+  ),
+  defaultMeta: { service: 'ansible-mcp-server', version: '2.0.0' },
+  transports: [
+    new winston.transports.Console({
+      format: winston.format.combine(
+        winston.format.colorize(),
+        winston.format.simple()
+      ),
+      stderrLevels: ['error', 'warn', 'info', 'debug'],
+    }),
+    new winston.transports.File({
+      filename: '/tmp/ansible-mcp/logs/error.log',
+      level: 'error'
+    }),
+    new winston.transports.File({
+      filename: '/tmp/ansible-mcp/logs/combined.log'
+    }),
+  ],
+});
+
+// =============================================================================
+// METRICS CONFIGURATION
+// =============================================================================
+
+const metricsRegistry = new Registry();
+collectDefaultMetrics({ register: metricsRegistry });
+
+const metrics = {
+  playbooksGenerated: new Counter({
+    name: 'ansible_mcp_playbooks_generated_total',
+    help: 'Total number of playbooks generated',
+    labelNames: ['template', 'status'],
+    registers: [metricsRegistry],
+  }),
+  playbooksExecuted: new Counter({
+    name: 'ansible_mcp_playbooks_executed_total',
+    help: 'Total number of playbooks executed',
+    labelNames: ['status', 'check_mode'],
+    registers: [metricsRegistry],
+  }),
+  validationErrors: new Counter({
+    name: 'ansible_mcp_validation_errors_total',
+    help: 'Total number of validation errors',
+    registers: [metricsRegistry],
+  }),
+  executionDuration: new Histogram({
+    name: 'ansible_mcp_execution_duration_seconds',
+    help: 'Duration of playbook execution in seconds',
+    buckets: [0.1, 0.5, 1, 5, 10, 30, 60, 120, 300],
+    registers: [metricsRegistry],
+  }),
+  secretsDetected: new Counter({
+    name: 'ansible_mcp_secrets_detected_total',
+    help: 'Total number of potential secrets detected in playbooks',
+    registers: [metricsRegistry],
+  }),
+  authFailures: new Counter({
+    name: 'ansible_mcp_auth_failures_total',
+    help: 'Total number of authentication failures',
+    registers: [metricsRegistry],
+  }),
+  activeConnections: new Gauge({
+    name: 'ansible_mcp_active_connections',
+    help: 'Number of active connections',
+    registers: [metricsRegistry],
+  }),
+};
+
+// =============================================================================
+// SECRETS DETECTION PATTERNS
+// =============================================================================
+
+const secretPatterns = [
+  { name: 'AWS Access Key', pattern: /AKIA[0-9A-Z]{16}/gi },
+  { name: 'AWS Secret Key', pattern: /[0-9a-zA-Z/+]{40}/g },
+  { name: 'API Key', pattern: /api[_-]?key['":\s]*['"]?([a-zA-Z0-9_-]{20,})/gi },
+  { name: 'Password', pattern: /password['":\s]*['"]?([^'"}\s]{8,})/gi },
+  { name: 'Private Key', pattern: /-----BEGIN (?:RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----/gi },
+  { name: 'GitHub Token', pattern: /gh[ps]_[a-zA-Z0-9]{36}/gi },
+  { name: 'Slack Token', pattern: /xox[baprs]-[0-9a-zA-Z-]{10,}/gi },
+  { name: 'JWT', pattern: /eyJ[a-zA-Z0-9_-]*\.eyJ[a-zA-Z0-9_-]*\.[a-zA-Z0-9_-]*/gi },
+  { name: 'Generic Secret', pattern: /secret['":\s]*['"]?([a-zA-Z0-9_-]{16,})/gi },
+  { name: 'Bearer Token', pattern: /bearer\s+[a-zA-Z0-9_.-]+/gi },
+];
+
+// =============================================================================
+// RETRY UTILITY
+// =============================================================================
+
+async function withRetry<T>(
+  operation: () => Promise<T>,
+  maxRetries: number = 3,
+  baseDelay: number = 1000
+): Promise<T> {
+  let lastError: Error | null = null;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      return await operation();
+    } catch (error) {
+      lastError = error as Error;
+      if (attempt < maxRetries) {
+        const delay = baseDelay * Math.pow(2, attempt - 1);
+        logger.warn(`Attempt ${attempt} failed, retrying in ${delay}ms`, {
+          error: lastError.message
+        });
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  }
+
+  throw lastError;
+}
 
 // Tool schemas
 const GeneratePlaybookSchema = z.object({
@@ -109,6 +262,10 @@ class AnsibleMCPServer {
   private promptTemplateLibrary: PromptTemplateLibrary;
   private workDir: string;
   private aiProvider: AIProvider | null;
+  private redis: RedisClient | null;
+  private vault: any;
+  private metricsServer: http.Server | null;
+  private rateLimitMap: Map<string, number[]>;
 
   constructor() {
     this.server = new McpServer(
@@ -126,20 +283,301 @@ class AnsibleMCPServer {
     this.promptTemplateLibrary = new PromptTemplateLibrary();
     this.workDir = '/tmp/ansible-mcp';
     this.aiProvider = null;
+    this.redis = null;
+    this.vault = null;
+    this.metricsServer = null;
+    this.rateLimitMap = new Map();
     this.initialize();
   }
 
+  // ===========================================================================
+  // SECURITY METHODS
+  // ===========================================================================
+
+  private validatePath(inputPath: string): { valid: boolean; error?: string; sanitizedPath?: string } {
+    // Check for null bytes first (before any path operations)
+    if (inputPath.includes('\0')) {
+      logger.warn('Null byte injection attempt detected', { inputPath });
+      return { valid: false, error: 'Invalid characters in path' };
+    }
+
+    // Normalize and resolve the path
+    const normalizedPath = path.normalize(inputPath);
+    const resolvedPath = path.resolve(normalizedPath);
+
+    // Check if path is within allowed directories using path.relative()
+    // This is more robust than startsWith() which can allow partial matches
+    const isAllowed = securityConfig.allowedPaths.some(allowedPath => {
+      const resolvedAllowed = path.resolve(allowedPath);
+      const relativePath = path.relative(resolvedAllowed, resolvedPath);
+
+      // Path is inside if:
+      // 1. It's not empty (same directory is allowed)
+      // 2. It doesn't start with '..' (not escaping)
+      // 3. It's not an absolute path (not escaping on Windows)
+      return relativePath === '' ||
+        (!relativePath.startsWith('..') && !path.isAbsolute(relativePath));
+    });
+
+    if (!isAllowed) {
+      logger.warn('Access to unauthorized path attempted', { inputPath, resolvedPath });
+      return { valid: false, error: `Path not in allowed directories: ${securityConfig.allowedPaths.join(', ')}` };
+    }
+
+    return { valid: true, sanitizedPath: resolvedPath };
+  }
+
+  private detectSecrets(content: string): { found: boolean; secrets: { type: string; line: number }[] } {
+    const detectedSecrets: { type: string; line: number }[] = [];
+    const lines = content.split('\n');
+
+    lines.forEach((line, index) => {
+      // Skip lines that are clearly Jinja2 variables
+      if (line.includes('{{ ') && line.includes(' }}')) {
+        return;
+      }
+
+      secretPatterns.forEach(({ name, pattern }) => {
+        // Reset lastIndex for global patterns
+        pattern.lastIndex = 0;
+        if (pattern.test(line)) {
+          detectedSecrets.push({ type: name, line: index + 1 });
+        }
+      });
+    });
+
+    if (detectedSecrets.length > 0) {
+      metrics.secretsDetected.inc(detectedSecrets.length);
+      logger.warn('Potential secrets detected in playbook', {
+        count: detectedSecrets.length,
+        types: [...new Set(detectedSecrets.map(s => s.type))]
+      });
+    }
+
+    return {
+      found: detectedSecrets.length > 0,
+      secrets: detectedSecrets
+    };
+  }
+
+  private checkRateLimit(clientId: string = 'default'): boolean {
+    const now = Date.now();
+    const windowMs = 60000; // 1 minute
+    const requests = this.rateLimitMap.get(clientId) || [];
+
+    // Filter out old requests
+    const recentRequests = requests.filter(time => now - time < windowMs);
+
+    if (recentRequests.length >= securityConfig.rateLimitPerMinute) {
+      logger.warn('Rate limit exceeded', { clientId, requestCount: recentRequests.length });
+      return false;
+    }
+
+    recentRequests.push(now);
+    this.rateLimitMap.set(clientId, recentRequests);
+    return true;
+  }
+
+  // ===========================================================================
+  // INFRASTRUCTURE INTEGRATION
+  // ===========================================================================
+
+  private async initializeRedis(): Promise<void> {
+    const redisHost = process.env.REDIS_HOST || 'localhost';
+    const redisPort = parseInt(process.env.REDIS_PORT || '6379');
+
+    try {
+      this.redis = new Redis({
+        host: redisHost,
+        port: redisPort,
+        retryStrategy: (times: number) => {
+          if (times > 3) {
+            logger.error('Redis connection failed after 3 retries');
+            return null;
+          }
+          return Math.min(times * 200, 2000);
+        },
+        lazyConnect: true,
+      });
+
+      await this.redis.connect();
+      logger.info('Redis connected successfully', { host: redisHost, port: redisPort });
+    } catch (error) {
+      logger.warn('Redis connection failed, caching disabled', {
+        error: (error as Error).message
+      });
+      this.redis = null;
+    }
+  }
+
+  private async initializeVault(): Promise<void> {
+    const vaultAddr = process.env.VAULT_ADDR || 'http://localhost:8200';
+    const vaultToken = process.env.VAULT_TOKEN;
+
+    if (!vaultToken) {
+      logger.warn('VAULT_TOKEN not set, Vault integration disabled');
+      return;
+    }
+
+    try {
+      this.vault = Vault({
+        apiVersion: 'v1',
+        endpoint: vaultAddr,
+        token: vaultToken,
+      });
+
+      // Test connection with retry
+      await withRetry(async () => {
+        await this.vault.health();
+      }, 3, 1000);
+      logger.info('Vault connected successfully', { endpoint: vaultAddr });
+    } catch (error) {
+      logger.warn('Vault connection failed, secrets management disabled', {
+        error: (error as Error).message
+      });
+      this.vault = null;
+    }
+  }
+
+  private async startMetricsServer(): Promise<void> {
+    const metricsPort = parseInt(process.env.METRICS_PORT || '9090');
+
+    this.metricsServer = http.createServer(async (req, res) => {
+      if (req.url === '/metrics') {
+        res.setHeader('Content-Type', metricsRegistry.contentType);
+        res.end(await metricsRegistry.metrics());
+      } else if (req.url === '/health') {
+        const health = await this.getHealthStatus();
+        res.setHeader('Content-Type', 'application/json');
+        res.statusCode = health.status === 'healthy' ? 200 : 503;
+        res.end(JSON.stringify(health));
+      } else {
+        res.statusCode = 404;
+        res.end('Not Found');
+      }
+    });
+
+    this.metricsServer.listen(metricsPort, () => {
+      logger.info('Metrics server started', { port: metricsPort });
+    });
+  }
+
+  private async getHealthStatus(): Promise<{
+    status: string;
+    checks: { [key: string]: { status: string; latency?: number } };
+    timestamp: string;
+  }> {
+    const checks: { [key: string]: { status: string; latency?: number } } = {};
+
+    // Check Redis
+    if (this.redis) {
+      const start = Date.now();
+      try {
+        await this.redis.ping();
+        checks.redis = { status: 'healthy', latency: Date.now() - start };
+      } catch {
+        checks.redis = { status: 'unhealthy' };
+      }
+    } else {
+      checks.redis = { status: 'disabled' };
+    }
+
+    // Check Vault
+    if (this.vault) {
+      const start = Date.now();
+      try {
+        await this.vault.health();
+        checks.vault = { status: 'healthy', latency: Date.now() - start };
+      } catch {
+        checks.vault = { status: 'unhealthy' };
+      }
+    } else {
+      checks.vault = { status: 'disabled' };
+    }
+
+    // Check AI Provider
+    checks.aiProvider = {
+      status: this.aiProvider ? 'healthy' : 'disabled'
+    };
+
+    // Determine overall status
+    const unhealthyChecks = Object.values(checks).filter(
+      c => c.status === 'unhealthy'
+    );
+    const overallStatus = unhealthyChecks.length === 0 ? 'healthy' : 'degraded';
+
+    return {
+      status: overallStatus,
+      checks,
+      timestamp: new Date().toISOString()
+    };
+  }
+
+  // Cache methods for future use
+  private async _cacheGet(key: string): Promise<string | null> {
+    if (!this.redis) return null;
+    try {
+      return await this.redis.get(key);
+    } catch (error) {
+      logger.error('Redis get error', { key, error: (error as Error).message });
+      return null;
+    }
+  }
+
+  private async _cacheSet(key: string, value: string, ttlSeconds: number = 3600): Promise<void> {
+    if (!this.redis) return;
+    try {
+      await this.redis.setex(key, ttlSeconds, value);
+    } catch (error) {
+      logger.error('Redis set error', { key, error: (error as Error).message });
+    }
+  }
+
+  // Expose cache methods publicly for external use
+  public cacheGet = this._cacheGet.bind(this);
+  public cacheSet = this._cacheSet.bind(this);
+
+  async getSecret(secretPath: string): Promise<any> {
+    if (!this.vault) {
+      throw new Error('Vault not configured');
+    }
+
+    try {
+      const result = await this.vault.read(secretPath);
+      logger.debug('Secret retrieved from Vault', { path: secretPath });
+      return result.data;
+    } catch (error) {
+      logger.error('Failed to retrieve secret from Vault', {
+        path: secretPath,
+        error: (error as Error).message
+      });
+      throw error;
+    }
+  }
+
   private async initialize() {
-    // Create working directory
+    // Create working directory and logs directory
     await fs.mkdir(this.workDir, { recursive: true });
+    await fs.mkdir(path.join(this.workDir, 'logs'), { recursive: true });
+
+    logger.info('Initializing Ansible MCP Server');
+
+    // Initialize infrastructure
+    await this.initializeRedis();
+    await this.initializeVault();
+    await this.startMetricsServer();
 
     // Initialize AI provider
     try {
       this.aiProvider = createProviderFromEnv();
-      console.error(`AI Provider initialized: ${this.aiProvider.getName()} (${this.aiProvider.getModel()})`);
+      logger.info('AI Provider initialized', {
+        provider: this.aiProvider.getName(),
+        model: this.aiProvider.getModel()
+      });
     } catch (error) {
-      console.error('AI Provider initialization failed:', error instanceof Error ? error.message : String(error));
-      console.error('Falling back to template-based generation');
+      logger.warn('AI Provider initialization failed, falling back to template-based generation', {
+        error: error instanceof Error ? error.message : String(error)
+      });
     }
 
     // Load templates
@@ -150,6 +588,8 @@ class AnsibleMCPServer {
 
     // Setup tool handlers
     this.setupHandlers();
+
+    logger.info('Ansible MCP Server initialization complete');
   }
 
   private async loadTemplates() {
@@ -493,26 +933,54 @@ class AnsibleMCPServer {
   private async generatePlaybook(args: any): Promise<CallToolResult> {
     const params = GeneratePlaybookSchema.parse(args);
 
+    // Rate limiting check
+    if (!this.checkRateLimit()) {
+      metrics.authFailures.inc();
+      return {
+        content: [{ type: 'text' as const, text: 'Rate limit exceeded. Please try again later.' }],
+        isError: true
+      };
+    }
+
+    const startTime = Date.now();
+    logger.info('Generating playbook', { prompt: params.prompt.substring(0, 100), template: params.template });
+
     try {
       let playbook: string;
 
       // Use template if specified
       if (params.template && this.playbookTemplates.has(params.template)) {
         playbook = this.playbookTemplates.get(params.template)!;
+        logger.debug('Using template', { template: params.template });
       } else {
         // Generate playbook using AI assistance
         playbook = await this.generateWithAI(params.prompt, params.context);
       }
 
-      // Save playbook to file
+      // Check for secrets in generated playbook
+      const secretsCheck = this.detectSecrets(playbook);
+      if (secretsCheck.found) {
+        logger.warn('Secrets detected in generated playbook', {
+          count: secretsCheck.secrets.length
+        });
+      }
+
+      // Save playbook to file with secure permissions
       const timestamp = Date.now();
       const filename = `playbook_${timestamp}.yml`;
       const filepath = path.join(this.workDir, filename);
 
-      await fs.writeFile(filepath, playbook);
+      await fs.writeFile(filepath, playbook, { mode: 0o600 });
+      logger.debug('Playbook saved', { filepath });
 
       // Validate the generated playbook
       const validation = await this.validateYAML(playbook);
+
+      // Update metrics
+      metrics.playbooksGenerated.labels(params.template || 'ai', 'success').inc();
+
+      const duration = (Date.now() - startTime) / 1000;
+      logger.info('Playbook generated successfully', { filepath, duration });
 
       return {
         content: [
@@ -522,12 +990,20 @@ class AnsibleMCPServer {
               playbook_path: filepath,
               playbook_content: playbook,
               validation: validation,
+              secrets_warning: secretsCheck.found ? {
+                message: 'Potential secrets detected in playbook',
+                count: secretsCheck.secrets.length,
+                details: secretsCheck.secrets
+              } : null,
               message: 'Playbook generated successfully'
             }, null, 2)
           }
         ]
       };
     } catch (error) {
+      metrics.playbooksGenerated.labels(params.template || 'ai', 'error').inc();
+      logger.error('Playbook generation failed', { error: (error as Error).message });
+
       return {
         content: [
           {
@@ -544,17 +1020,19 @@ class AnsibleMCPServer {
     // Use AI provider if available
     if (this.aiProvider) {
       try {
-        console.log(`Generating playbook using AI provider: ${this.aiProvider.getName()}`);
+        logger.debug('Generating playbook using AI provider', { provider: this.aiProvider.getName() });
         const generatedPlaybook = await this.aiProvider.generatePlaybook(prompt, context);
         return generatedPlaybook;
       } catch (error) {
-        console.error('AI generation failed, falling back to template:', error instanceof Error ? (error as Error).message : String(error));
+        logger.warn('AI generation failed, falling back to template', {
+          error: error instanceof Error ? error.message : String(error)
+        });
         // Fall through to template-based generation
       }
     }
 
     // Fallback to template-based generation
-    console.log('Using template-based generation');
+    logger.debug('Using template-based generation');
     const playbook = `---
 # Generated playbook from prompt: ${prompt}
 - name: ${prompt}
@@ -585,25 +1063,57 @@ class AnsibleMCPServer {
   private async validatePlaybook(args: any): Promise<CallToolResult> {
     const params = ValidatePlaybookSchema.parse(args);
 
+    // Validate path to prevent path traversal
+    const pathValidation = this.validatePath(params.playbook_path);
+    if (!pathValidation.valid) {
+      logger.warn('Invalid playbook path', { path: params.playbook_path, error: pathValidation.error });
+      return {
+        content: [{ type: 'text' as const, text: `Security error: ${pathValidation.error}` }],
+        isError: true
+      };
+    }
+
+    const sanitizedPath = pathValidation.sanitizedPath!;
+    logger.info('Validating playbook', { path: sanitizedPath, strict: params.strict });
+
     try {
       // Read playbook
-      const content = await fs.readFile(params.playbook_path, 'utf-8');
+      const content = await fs.readFile(sanitizedPath, 'utf-8');
+
+      // Check file size using byte length (not string length)
+      const byteSize = Buffer.byteLength(content, 'utf8');
+      if (byteSize > securityConfig.maxPlaybookSize) {
+        return {
+          content: [{ type: 'text' as const, text: `Playbook exceeds maximum size of ${securityConfig.maxPlaybookSize} bytes (actual: ${byteSize} bytes)` }],
+          isError: true
+        };
+      }
 
       // Validate YAML syntax
       const yamlValidation = await this.validateYAML(content);
 
-      // Run ansible-playbook --syntax-check
-      const syntaxCheck = await execAsync(
-        `ansible-playbook --syntax-check ${params.playbook_path}`,
-        { cwd: this.workDir }
-      ).catch(err => ({ stdout: '', stderr: err.message }));
+      // Check for secrets
+      const secretsCheck = this.detectSecrets(content);
+
+      // Run ansible-playbook --syntax-check using execFile (safe from injection)
+      let syntaxCheck: { stdout: string; stderr: string };
+      try {
+        const result = await execFileAsync('ansible-playbook', ['--syntax-check', sanitizedPath], {
+          cwd: this.workDir,
+          timeout: 30000 // 30 second timeout
+        });
+        syntaxCheck = { stdout: result.stdout, stderr: result.stderr };
+      } catch (err: any) {
+        syntaxCheck = { stdout: err.stdout || '', stderr: err.stderr || err.message };
+      }
 
       // Collect results
       const results = {
         yaml_valid: yamlValidation.valid,
         yaml_errors: yamlValidation.errors,
-        ansible_syntax_valid: !syntaxCheck.stderr,
-        ansible_syntax_errors: syntaxCheck.stderr,
+        ansible_syntax_valid: !syntaxCheck.stderr || syntaxCheck.stderr.length === 0,
+        ansible_syntax_errors: syntaxCheck.stderr || null,
+        secrets_detected: secretsCheck.found ? secretsCheck.secrets : null,
         warnings: [] as string[]
       };
 
@@ -613,6 +1123,12 @@ class AnsibleMCPServer {
       }
 
       const isValid = results.yaml_valid && results.ansible_syntax_valid;
+
+      if (!isValid) {
+        metrics.validationErrors.inc();
+      }
+
+      logger.info('Playbook validation complete', { path: sanitizedPath, valid: isValid });
 
       return {
         content: [
@@ -627,6 +1143,9 @@ class AnsibleMCPServer {
         isError: !isValid
       };
     } catch (error) {
+      logger.error('Playbook validation failed', { path: sanitizedPath, error: (error as Error).message });
+      metrics.validationErrors.inc();
+
       return {
         content: [
           {
@@ -677,27 +1196,114 @@ class AnsibleMCPServer {
   private async runPlaybook(args: any): Promise<CallToolResult> {
     const params = RunPlaybookSchema.parse(args);
 
+    // Validate playbook path
+    const playbookPathValidation = this.validatePath(params.playbook_path);
+    if (!playbookPathValidation.valid) {
+      logger.warn('Invalid playbook path for execution', { path: params.playbook_path });
+      return {
+        content: [{ type: 'text' as const, text: `Security error: ${playbookPathValidation.error}` }],
+        isError: true
+      };
+    }
+
+    // Validate inventory path to prevent traversal
+    let inventoryPath: string;
+    if (params.inventory.includes('/')) {
+      // Full path provided - validate it
+      const inventoryPathValidation = this.validatePath(params.inventory);
+      if (!inventoryPathValidation.valid) {
+        logger.warn('Invalid inventory path', { path: params.inventory });
+        return {
+          content: [{ type: 'text' as const, text: `Security error: ${inventoryPathValidation.error}` }],
+          isError: true
+        };
+      }
+      inventoryPath = inventoryPathValidation.sanitizedPath!;
+    } else {
+      // Relative name - ensure it doesn't contain traversal attempts
+      const sanitizedName = params.inventory.replace(/[^a-zA-Z0-9_.-]/g, '');
+      inventoryPath = path.join('/workspace/inventory', sanitizedName);
+    }
+
+    const sanitizedPlaybookPath = playbookPathValidation.sanitizedPath!;
+
+    // Detect secrets before execution
     try {
-      // Build ansible-playbook command
-      let command = `ansible-playbook ${params.playbook_path}`;
-      command += ` -i ${params.inventory}`;
+      const playbookContent = await fs.readFile(sanitizedPlaybookPath, 'utf-8');
+      const secretsCheck = this.detectSecrets(playbookContent);
+
+      if (secretsCheck.found) {
+        logger.warn('Secrets detected in playbook before execution', {
+          playbook: sanitizedPlaybookPath,
+          secrets: secretsCheck.secrets
+        });
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify({
+              success: false,
+              error: 'Playbook contains potential secrets',
+              secrets_detected: secretsCheck.secrets,
+              message: 'Please remove hardcoded secrets and use Ansible Vault or environment variables'
+            }, null, 2)
+          }],
+          isError: true
+        };
+      }
+    } catch (readError) {
+      logger.error('Failed to read playbook for secrets check', {
+        path: sanitizedPlaybookPath,
+        error: (readError as Error).message
+      });
+    }
+
+    const startTime = Date.now();
+
+    logger.info('Executing playbook', {
+      playbook: sanitizedPlaybookPath,
+      inventory: inventoryPath,
+      checkMode: params.check_mode,
+      tags: params.tags
+    });
+
+    try {
+      // Build arguments array (safe from command injection)
+      const cmdArgs: string[] = [sanitizedPlaybookPath, '-i', inventoryPath];
 
       if (params.check_mode) {
-        command += ' --check';
+        cmdArgs.push('--check');
       }
 
       if (params.tags && params.tags.length > 0) {
-        command += ` --tags "${params.tags.join(',')}"`;
+        // Sanitize tags to prevent injection
+        const sanitizedTags = params.tags.map(tag =>
+          tag.replace(/[^a-zA-Z0-9_-]/g, '')
+        ).filter(tag => tag.length > 0);
+
+        if (sanitizedTags.length > 0) {
+          cmdArgs.push('--tags', sanitizedTags.join(','));
+        }
       }
 
       if (params.extra_vars) {
-        command += ` -e '${JSON.stringify(params.extra_vars)}'`;
+        cmdArgs.push('-e', JSON.stringify(params.extra_vars));
       }
 
-      // Execute playbook
-      const result = await execAsync(command, {
+      // Execute playbook using execFile (safe from injection)
+      const result = await execFileAsync('ansible-playbook', cmdArgs, {
         cwd: this.workDir,
-        maxBuffer: 1024 * 1024 * 10 // 10MB buffer
+        maxBuffer: 1024 * 1024 * 10, // 10MB buffer
+        timeout: 600000 // 10 minute timeout
+      });
+
+      const duration = (Date.now() - startTime) / 1000;
+      metrics.executionDuration.observe(duration);
+      metrics.playbooksExecuted.labels('success', params.check_mode ? 'true' : 'false').inc();
+
+      logger.info('Playbook execution complete', {
+        playbook: sanitizedPlaybookPath,
+        duration,
+        success: true
       });
 
       return {
@@ -705,23 +1311,38 @@ class AnsibleMCPServer {
           {
             type: 'text' as const,
             text: JSON.stringify({
+              success: true,
               output: result.stdout,
-              errors: result.stderr,
-              command: command
+              errors: result.stderr || null,
+              duration_seconds: duration,
+              command: `ansible-playbook ${cmdArgs.join(' ')}`
             }, null, 2)
           }
         ]
       };
     } catch (error) {
       const execError = error as any;
+      const duration = (Date.now() - startTime) / 1000;
+
+      metrics.executionDuration.observe(duration);
+      metrics.playbooksExecuted.labels('error', params.check_mode ? 'true' : 'false').inc();
+
+      logger.error('Playbook execution failed', {
+        playbook: sanitizedPlaybookPath,
+        duration,
+        error: execError.message
+      });
+
       return {
         content: [
           {
             type: 'text' as const,
             text: JSON.stringify({
-              error: (error as Error).message,
+              success: false,
+              error: execError.message,
               stderr: execError.stderr,
-              stdout: execError.stdout
+              stdout: execError.stdout,
+              duration_seconds: duration
             }, null, 2)
           }
         ],
@@ -740,7 +1361,7 @@ class AnsibleMCPServer {
       // Use AI provider for intelligent refinement if available
       if (this.aiProvider) {
         try {
-          console.error('Using AI provider for playbook refinement');
+          logger.info('Using AI provider for playbook refinement', { provider: this.aiProvider.getName() });
           const refinementPrompt = `Refine this Ansible playbook based on the following feedback: ${params.feedback}
 
 ${params.validation_errors && params.validation_errors.length > 0 ? `\nValidation errors to fix:\n${params.validation_errors.join('\n')}` : ''}
@@ -781,12 +1402,14 @@ Please provide an improved version of the playbook that addresses the feedback a
             ],
           };
         } catch (error) {
-          console.error('AI refinement failed, falling back to rule-based refinement:', error instanceof Error ? error.message : String(error));
+          logger.warn('AI refinement failed, falling back to rule-based refinement', {
+            error: error instanceof Error ? error.message : String(error)
+          });
         }
       }
 
       // Fallback to rule-based refinement
-      console.error('Using rule-based refinement');
+      logger.debug('Using rule-based refinement');
 
       // Parse YAML
       const playbook = yaml.load(content) as any;
@@ -875,17 +1498,38 @@ Please provide an improved version of the playbook that addresses the feedback a
   private async lintPlaybook(args: any): Promise<CallToolResult> {
     const { playbook_path } = args;
 
-    try {
-      // Run ansible-lint
-      const result = await execAsync(
-        `ansible-lint ${playbook_path}`,
-        { cwd: this.workDir }
-      ).catch(err => ({
-        stdout: err.stdout || '',
-        stderr: err.stderr || err.message
-      }));
+    // Validate path to prevent path traversal
+    const pathValidation = this.validatePath(playbook_path);
+    if (!pathValidation.valid) {
+      logger.warn('Invalid playbook path for linting', { path: playbook_path });
+      return {
+        content: [{ type: 'text' as const, text: `Security error: ${pathValidation.error}` }],
+        isError: true
+      };
+    }
 
-      const hasErrors = Boolean(result.stderr);
+    const sanitizedPath = pathValidation.sanitizedPath!;
+    logger.info('Linting playbook', { path: sanitizedPath });
+
+    try {
+      // Run ansible-lint using execFile (safe from injection)
+      let result: { stdout: string; stderr: string };
+      try {
+        const execResult = await execFileAsync('ansible-lint', [sanitizedPath], {
+          cwd: this.workDir,
+          timeout: 60000 // 1 minute timeout
+        });
+        result = { stdout: execResult.stdout, stderr: execResult.stderr };
+      } catch (err: any) {
+        result = {
+          stdout: err.stdout || '',
+          stderr: err.stderr || err.message
+        };
+      }
+
+      const hasErrors = Boolean(result.stderr && result.stderr.length > 0);
+
+      logger.info('Playbook linting complete', { path: sanitizedPath, hasErrors });
 
       return {
         content: [
@@ -900,6 +1544,8 @@ Please provide an improved version of the playbook that addresses the feedback a
         isError: hasErrors
       };
     } catch (error) {
+      logger.error('Playbook linting failed', { path: sanitizedPath, error: (error as Error).message });
+
       return {
         content: [
           {
@@ -1233,10 +1879,54 @@ ${template?.context_enrichment.best_practices.slice(0, 3).map(bp => `    # - ${b
   async start() {
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
-    console.error('Ansible MCP Server v2.0.0 started successfully (MCP SDK v1.22.0)');
+
+    metrics.activeConnections.inc();
+
+    logger.info('Ansible MCP Server started successfully', {
+      version: '2.0.0',
+      sdkVersion: '1.22.0',
+      metricsPort: process.env.METRICS_PORT || '9090',
+      features: {
+        redis: this.redis !== null,
+        vault: this.vault !== null,
+        aiProvider: this.aiProvider !== null
+      }
+    });
+
+    // Graceful shutdown handling
+    process.on('SIGINT', async () => {
+      logger.info('Received SIGINT, shutting down gracefully');
+      await this.shutdown();
+      process.exit(0);
+    });
+
+    process.on('SIGTERM', async () => {
+      logger.info('Received SIGTERM, shutting down gracefully');
+      await this.shutdown();
+      process.exit(0);
+    });
+  }
+
+  private async shutdown() {
+    metrics.activeConnections.dec();
+
+    if (this.redis) {
+      await this.redis.quit();
+      logger.info('Redis connection closed');
+    }
+
+    if (this.metricsServer) {
+      this.metricsServer.close();
+      logger.info('Metrics server stopped');
+    }
+
+    logger.info('Ansible MCP Server shutdown complete');
   }
 }
 
 // Start the server
 const server = new AnsibleMCPServer();
-server.start().catch(console.error);
+server.start().catch((error) => {
+  logger.error('Failed to start server', { error: error.message });
+  process.exit(1);
+});
