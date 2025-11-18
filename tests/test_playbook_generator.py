@@ -350,31 +350,19 @@ class TestSecretsDetection:
     def test_detect_aws_key(self, secret_patterns):
         """Should detect AWS access key"""
         content = "aws_access_key_id: AKIAIOSFODNN7EXAMPLE"
-        detected = False
-        for name, pattern in secret_patterns:
-            if pattern.search(content):
-                detected = True
-                break
+        detected = any(pattern.search(content) for _, pattern in secret_patterns)
         assert detected
 
     def test_detect_password(self, secret_patterns):
         """Should detect hardcoded password"""
         content = 'db_password: "mysupersecretpassword"'
-        detected = False
-        for name, pattern in secret_patterns:
-            if pattern.search(content):
-                detected = True
-                break
+        detected = any(pattern.search(content) for _, pattern in secret_patterns)
         assert detected
 
     def test_detect_private_key(self, secret_patterns):
         """Should detect private key"""
         content = "-----BEGIN RSA PRIVATE KEY-----\nMIIE..."
-        detected = False
-        for name, pattern in secret_patterns:
-            if pattern.search(content):
-                detected = True
-                break
+        detected = any(pattern.search(content) for _, pattern in secret_patterns)
         assert detected
 
     def test_not_detect_jinja_variable(self, secret_patterns):
@@ -392,11 +380,7 @@ class TestSecretsDetection:
             name: nginx
             state: present
         """
-        detected = False
-        for name, pattern in secret_patterns:
-            if pattern.search(content):
-                detected = True
-                break
+        detected = any(pattern.search(content) for _, pattern in secret_patterns)
         assert not detected
 
 

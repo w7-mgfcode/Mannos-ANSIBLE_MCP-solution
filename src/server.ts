@@ -295,30 +295,33 @@ class AnsibleMCPServer {
   // ===========================================================================
 
   private validatePath(inputPath: string): { valid: boolean; error?: string; sanitizedPath?: string } {
-    // Normalize the path
+    // Check for null bytes first (before any path operations)
+    if (inputPath.includes('\0')) {
+      logger.warn('Null byte injection attempt detected', { inputPath });
+      return { valid: false, error: 'Invalid characters in path' };
+    }
+
+    // Normalize and resolve the path
     const normalizedPath = path.normalize(inputPath);
     const resolvedPath = path.resolve(normalizedPath);
 
-    // Check for path traversal attempts
-    if (inputPath.includes('..')) {
-      logger.warn('Path traversal attempt detected', { inputPath });
-      return { valid: false, error: 'Path traversal not allowed' };
-    }
+    // Check if path is within allowed directories using path.relative()
+    // This is more robust than startsWith() which can allow partial matches
+    const isAllowed = securityConfig.allowedPaths.some(allowedPath => {
+      const resolvedAllowed = path.resolve(allowedPath);
+      const relativePath = path.relative(resolvedAllowed, resolvedPath);
 
-    // Check if path is within allowed directories
-    const isAllowed = securityConfig.allowedPaths.some(
-      allowedPath => resolvedPath.startsWith(path.resolve(allowedPath))
-    );
+      // Path is inside if:
+      // 1. It's not empty (same directory is allowed)
+      // 2. It doesn't start with '..' (not escaping)
+      // 3. It's not an absolute path (not escaping on Windows)
+      return relativePath === '' ||
+        (!relativePath.startsWith('..') && !path.isAbsolute(relativePath));
+    });
 
     if (!isAllowed) {
       logger.warn('Access to unauthorized path attempted', { inputPath, resolvedPath });
       return { valid: false, error: `Path not in allowed directories: ${securityConfig.allowedPaths.join(', ')}` };
-    }
-
-    // Check for null bytes
-    if (inputPath.includes('\0')) {
-      logger.warn('Null byte injection attempt detected', { inputPath });
-      return { valid: false, error: 'Invalid characters in path' };
     }
 
     return { valid: true, sanitizedPath: resolvedPath };
@@ -1077,10 +1080,11 @@ class AnsibleMCPServer {
       // Read playbook
       const content = await fs.readFile(sanitizedPath, 'utf-8');
 
-      // Check file size
-      if (content.length > securityConfig.maxPlaybookSize) {
+      // Check file size using byte length (not string length)
+      const byteSize = Buffer.byteLength(content, 'utf8');
+      if (byteSize > securityConfig.maxPlaybookSize) {
         return {
-          content: [{ type: 'text' as const, text: `Playbook exceeds maximum size of ${securityConfig.maxPlaybookSize} bytes` }],
+          content: [{ type: 'text' as const, text: `Playbook exceeds maximum size of ${securityConfig.maxPlaybookSize} bytes (actual: ${byteSize} bytes)` }],
           isError: true
         };
       }
@@ -1202,12 +1206,57 @@ class AnsibleMCPServer {
       };
     }
 
-    // Validate inventory path (allow relative paths for inventory names)
-    const inventoryPath = params.inventory.includes('/')
-      ? params.inventory
-      : path.join('/workspace/inventory', params.inventory);
+    // Validate inventory path to prevent traversal
+    let inventoryPath: string;
+    if (params.inventory.includes('/')) {
+      // Full path provided - validate it
+      const inventoryPathValidation = this.validatePath(params.inventory);
+      if (!inventoryPathValidation.valid) {
+        logger.warn('Invalid inventory path', { path: params.inventory });
+        return {
+          content: [{ type: 'text' as const, text: `Security error: ${inventoryPathValidation.error}` }],
+          isError: true
+        };
+      }
+      inventoryPath = inventoryPathValidation.sanitizedPath!;
+    } else {
+      // Relative name - ensure it doesn't contain traversal attempts
+      const sanitizedName = params.inventory.replace(/[^a-zA-Z0-9_.-]/g, '');
+      inventoryPath = path.join('/workspace/inventory', sanitizedName);
+    }
 
     const sanitizedPlaybookPath = playbookPathValidation.sanitizedPath!;
+
+    // Detect secrets before execution
+    try {
+      const playbookContent = await fs.readFile(sanitizedPlaybookPath, 'utf-8');
+      const secretsCheck = this.detectSecrets(playbookContent);
+
+      if (secretsCheck.found) {
+        logger.warn('Secrets detected in playbook before execution', {
+          playbook: sanitizedPlaybookPath,
+          secrets: secretsCheck.secrets
+        });
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify({
+              success: false,
+              error: 'Playbook contains potential secrets',
+              secrets_detected: secretsCheck.secrets,
+              message: 'Please remove hardcoded secrets and use Ansible Vault or environment variables'
+            }, null, 2)
+          }],
+          isError: true
+        };
+      }
+    } catch (readError) {
+      logger.error('Failed to read playbook for secrets check', {
+        path: sanitizedPlaybookPath,
+        error: (readError as Error).message
+      });
+    }
+
     const startTime = Date.now();
 
     logger.info('Executing playbook', {

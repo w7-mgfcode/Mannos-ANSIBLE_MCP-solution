@@ -233,7 +233,7 @@ LOG_LEVEL=info                     # Logging level (debug, info, warn, error)
 
 # AI Provider
 AI_PROVIDER=openai                 # AI provider (openai, anthropic, gemini, ollama)
-AI_MODEL=gpt-4.1                   # Model to use
+AI_MODEL=gpt-4-turbo               # Model to use (gpt-4-turbo, gpt-4o, etc.)
 OPENAI_API_KEY=sk-your-key         # API key for AI provider
 ```
 
