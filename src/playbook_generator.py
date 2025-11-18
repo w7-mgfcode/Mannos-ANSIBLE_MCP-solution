@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 
 class PlaybookType(Enum):
     """Types of playbooks that can be generated"""
+
     KUBERNETES = "kubernetes"
     DOCKER = "docker"
     SYSTEM = "system"
@@ -30,6 +31,7 @@ class PlaybookType(Enum):
 @dataclass
 class PlaybookContext:
     """Context for playbook generation"""
+
     prompt: str
     playbook_type: Optional[PlaybookType] = None
     target_hosts: str = "all"
@@ -68,12 +70,12 @@ class PlaybookGenerator:
     def _compile_patterns(self) -> Dict[str, re.Pattern]:
         """Compile regex patterns for prompt analysis"""
         return {
-            'kubernetes': re.compile(r'\b(k8s|kubernetes|kubectl|pod|deployment|service|ingress)\b', re.I),
-            'docker': re.compile(r'\b(docker|container|compose|dockerfile|registry)\b', re.I),
-            'database': re.compile(r'\b(mysql|postgres|mongodb|redis|database|db)\b', re.I),
-            'monitoring': re.compile(r'\b(prometheus|grafana|monitoring|metrics|alerts)\b', re.I),
-            'security': re.compile(r'\b(security|firewall|ssh|tls|certificate|vault)\b', re.I),
-            'network': re.compile(r'\b(network|routing|dns|load.?balanc|nginx|haproxy)\b', re.I),
+            "kubernetes": re.compile(r"\b(k8s|kubernetes|kubectl|pod|deployment|service|ingress)\b", re.I),
+            "docker": re.compile(r"\b(docker|container|compose|dockerfile|registry)\b", re.I),
+            "database": re.compile(r"\b(mysql|postgres|mongodb|redis|database|db)\b", re.I),
+            "monitoring": re.compile(r"\b(prometheus|grafana|monitoring|metrics|alerts)\b", re.I),
+            "security": re.compile(r"\b(security|firewall|ssh|tls|certificate|vault)\b", re.I),
+            "network": re.compile(r"\b(network|routing|dns|load.?balanc|nginx|haproxy)\b", re.I),
         }
 
     def analyze_prompt(self, prompt: str) -> PlaybookContext:
@@ -90,12 +92,12 @@ class PlaybookGenerator:
                     pass
 
         # Extract environment
-        if 'production' in prompt.lower():
-            context.environment = 'production'
-        elif 'staging' in prompt.lower():
-            context.environment = 'staging'
-        elif 'development' in prompt.lower() or 'dev' in prompt.lower():
-            context.environment = 'development'
+        if "production" in prompt.lower():
+            context.environment = "production"
+        elif "staging" in prompt.lower():
+            context.environment = "staging"
+        elif "development" in prompt.lower() or "dev" in prompt.lower():
+            context.environment = "development"
 
         # Extract requirements
         context.requirements = self._extract_requirements(prompt)
@@ -111,12 +113,12 @@ class PlaybookGenerator:
 
         # Common requirement patterns
         patterns = {
-            'high_availability': r'\b(high.?availability|ha|redundant|failover)\b',
-            'scalability': r'\b(scal[ae]bl|auto.?scal|elastic)\b',
-            'security': r'\b(secur|encrypt|tls|ssl|firewall)\b',
-            'monitoring': r'\b(monitor|metric|log|observ)\b',
-            'backup': r'\b(backup|restore|disaster.?recovery)\b',
-            'performance': r'\b(perform|optimiz|cache|fast)\b',
+            "high_availability": r"\b(high.?availability|ha|redundant|failover)\b",
+            "scalability": r"\b(scal[ae]bl|auto.?scal|elastic)\b",
+            "security": r"\b(secur|encrypt|tls|ssl|firewall)\b",
+            "monitoring": r"\b(monitor|metric|log|observ)\b",
+            "backup": r"\b(backup|restore|disaster.?recovery)\b",
+            "performance": r"\b(perform|optimiz|cache|fast)\b",
         }
 
         for req_name, pattern in patterns.items():
@@ -127,17 +129,17 @@ class PlaybookGenerator:
 
     def _generate_tags(self, prompt: str) -> List[str]:
         """Generate appropriate tags based on the prompt"""
-        tags = ['setup']
+        tags = ["setup"]
 
         keyword_to_tags = {
-            'install': ['install', 'setup'],
-            'configure': ['configure', 'config'],
-            'deploy': ['deploy', 'rollout'],
-            'update': ['update', 'upgrade'],
-            'backup': ['backup'],
-            'restore': ['restore'],
-            'monitor': ['monitoring'],
-            'secure': ['security'],
+            "install": ["install", "setup"],
+            "configure": ["configure", "config"],
+            "deploy": ["deploy", "rollout"],
+            "update": ["update", "upgrade"],
+            "backup": ["backup"],
+            "restore": ["restore"],
+            "monitor": ["monitoring"],
+            "secure": ["security"],
         }
 
         for keyword, tag_list in keyword_to_tags.items():
@@ -168,28 +170,18 @@ class PlaybookGenerator:
     def _generate_generic(self, context: PlaybookContext) -> str:
         """Generate a generic playbook structure"""
         playbook = {
-            'name': f"Playbook for: {context.prompt[:50]}",
-            'hosts': context.target_hosts,
-            'become': True,
-            'vars': {
-                'environment': context.environment,
-                **context.variables
-            },
-            'tasks': [
+            "name": f"Playbook for: {context.prompt[:50]}",
+            "hosts": context.target_hosts,
+            "become": True,
+            "vars": {"environment": context.environment, **context.variables},
+            "tasks": [
+                {"name": "Gather system facts", "setup": {}, "tags": ["always"]},
                 {
-                    'name': 'Gather system facts',
-                    'setup': {},
-                    'tags': ['always']
+                    "name": "Ensure system packages are updated",
+                    "package": {"name": "*", "state": "latest"},
+                    "tags": ["update"],
                 },
-                {
-                    'name': 'Ensure system packages are updated',
-                    'package': {
-                        'name': '*',
-                        'state': 'latest'
-                    },
-                    'tags': ['update']
-                }
-            ]
+            ],
         }
 
         return yaml.dump([playbook], default_flow_style=False, sort_keys=False)
@@ -199,13 +191,13 @@ class PlaybookGenerator:
         playbook_data = yaml.safe_load(playbook)
 
         for req in context.requirements:
-            if req == 'high_availability':
+            if req == "high_availability":
                 self._add_ha_tasks(playbook_data[0])
-            elif req == 'security':
+            elif req == "security":
                 self._add_security_tasks(playbook_data[0])
-            elif req == 'monitoring':
+            elif req == "monitoring":
                 self._add_monitoring_tasks(playbook_data[0])
-            elif req == 'backup':
+            elif req == "backup":
                 self._add_backup_tasks(playbook_data[0])
 
         return yaml.dump(playbook_data, default_flow_style=False, sort_keys=False)
@@ -215,13 +207,13 @@ class PlaybookGenerator:
         playbook_data = yaml.safe_load(playbook)
 
         # Analyze prompt for specific actions
-        if 'install' in context.prompt.lower():
+        if "install" in context.prompt.lower():
             self._add_installation_tasks(playbook_data[0], context)
 
-        if 'configure' in context.prompt.lower():
+        if "configure" in context.prompt.lower():
             self._add_configuration_tasks(playbook_data[0], context)
 
-        if 'deploy' in context.prompt.lower():
+        if "deploy" in context.prompt.lower():
             self._add_deployment_tasks(playbook_data[0], context)
 
         return yaml.dump(playbook_data, default_flow_style=False, sort_keys=False)
@@ -230,121 +222,85 @@ class PlaybookGenerator:
         """Add high availability related tasks"""
         ha_tasks = [
             {
-                'name': 'Configure keepalived for HA',
-                'package': {
-                    'name': 'keepalived',
-                    'state': 'present'
-                },
-                'tags': ['ha', 'keepalived']
+                "name": "Configure keepalived for HA",
+                "package": {"name": "keepalived", "state": "present"},
+                "tags": ["ha", "keepalived"],
             },
             {
-                'name': 'Setup load balancer health checks',
-                'uri': {
-                    'url': 'http://localhost/health',
-                    'status_code': 200
-                },
-                'tags': ['ha', 'healthcheck']
-            }
+                "name": "Setup load balancer health checks",
+                "uri": {"url": "http://localhost/health", "status_code": 200},
+                "tags": ["ha", "healthcheck"],
+            },
         ]
-        playbook['tasks'].extend(ha_tasks)
+        playbook["tasks"].extend(ha_tasks)
 
     def _add_security_tasks(self, playbook: Dict):
         """Add security related tasks"""
         security_tasks = [
             {
-                'name': 'Configure firewall rules',
-                'firewalld': {
-                    'service': 'https',
-                    'permanent': True,
-                    'state': 'enabled'
-                },
-                'tags': ['security', 'firewall']
+                "name": "Configure firewall rules",
+                "firewalld": {"service": "https", "permanent": True, "state": "enabled"},
+                "tags": ["security", "firewall"],
             },
             {
-                'name': 'Setup fail2ban',
-                'package': {
-                    'name': 'fail2ban',
-                    'state': 'present'
-                },
-                'tags': ['security', 'fail2ban']
+                "name": "Setup fail2ban",
+                "package": {"name": "fail2ban", "state": "present"},
+                "tags": ["security", "fail2ban"],
             },
             {
-                'name': 'Configure SSH hardening',
-                'lineinfile': {
-                    'path': '/etc/ssh/sshd_config',
-                    'regexp': '^PermitRootLogin',
-                    'line': 'PermitRootLogin no'
+                "name": "Configure SSH hardening",
+                "lineinfile": {
+                    "path": "/etc/ssh/sshd_config",
+                    "regexp": "^PermitRootLogin",
+                    "line": "PermitRootLogin no",
                 },
-                'notify': 'restart sshd',
-                'tags': ['security', 'ssh']
-            }
+                "notify": "restart sshd",
+                "tags": ["security", "ssh"],
+            },
         ]
-        playbook['tasks'].extend(security_tasks)
+        playbook["tasks"].extend(security_tasks)
 
         # Add handlers if not present
-        if 'handlers' not in playbook:
-            playbook['handlers'] = []
+        if "handlers" not in playbook:
+            playbook["handlers"] = []
 
-        playbook['handlers'].append({
-            'name': 'restart sshd',
-            'service': {
-                'name': 'sshd',
-                'state': 'restarted'
-            }
-        })
+        playbook["handlers"].append({"name": "restart sshd", "service": {"name": "sshd", "state": "restarted"}})
 
     def _add_monitoring_tasks(self, playbook: Dict):
         """Add monitoring related tasks"""
         node_exporter_url = (
-            'https://github.com/prometheus/node_exporter/releases/download/'
-            'v1.5.0/node_exporter-1.5.0.linux-amd64.tar.gz'
+            "https://github.com/prometheus/node_exporter/releases/download/"
+            "v1.5.0/node_exporter-1.5.0.linux-amd64.tar.gz"
         )
         monitoring_tasks = [
             {
-                'name': 'Install node exporter',
-                'unarchive': {
-                    'src': node_exporter_url,
-                    'dest': '/opt',
-                    'remote_src': True
-                },
-                'tags': ['monitoring', 'prometheus']
+                "name": "Install node exporter",
+                "unarchive": {"src": node_exporter_url, "dest": "/opt", "remote_src": True},
+                "tags": ["monitoring", "prometheus"],
             },
             {
-                'name': 'Create systemd service for node exporter',
-                'systemd': {
-                    'name': 'node_exporter',
-                    'state': 'started',
-                    'enabled': True
-                },
-                'tags': ['monitoring', 'prometheus']
-            }
+                "name": "Create systemd service for node exporter",
+                "systemd": {"name": "node_exporter", "state": "started", "enabled": True},
+                "tags": ["monitoring", "prometheus"],
+            },
         ]
-        playbook['tasks'].extend(monitoring_tasks)
+        playbook["tasks"].extend(monitoring_tasks)
 
     def _add_backup_tasks(self, playbook: Dict):
         """Add backup related tasks"""
         backup_tasks = [
             {
-                'name': 'Create backup directory',
-                'file': {
-                    'path': '/backup',
-                    'state': 'directory',
-                    'mode': '0755'
-                },
-                'tags': ['backup']
+                "name": "Create backup directory",
+                "file": {"path": "/backup", "state": "directory", "mode": "0755"},
+                "tags": ["backup"],
             },
             {
-                'name': 'Setup automated backup cron job',
-                'cron': {
-                    'name': 'Daily backup',
-                    'hour': '2',
-                    'minute': '0',
-                    'job': '/usr/local/bin/backup.sh'
-                },
-                'tags': ['backup', 'cron']
-            }
+                "name": "Setup automated backup cron job",
+                "cron": {"name": "Daily backup", "hour": "2", "minute": "0", "job": "/usr/local/bin/backup.sh"},
+                "tags": ["backup", "cron"],
+            },
         ]
-        playbook['tasks'].extend(backup_tasks)
+        playbook["tasks"].extend(backup_tasks)
 
     def _add_installation_tasks(self, playbook: Dict, context: PlaybookContext):
         """Add installation specific tasks"""
@@ -820,15 +776,9 @@ class PlaybookValidator:
         """Validate playbook YAML syntax"""
         try:
             data = yaml.safe_load(playbook_content)
-            return {
-                'valid': True,
-                'data': data
-            }
+            return {"valid": True, "data": data}
         except yaml.YAMLError as e:
-            return {
-                'valid': False,
-                'error': str(e)
-            }
+            return {"valid": False, "error": str(e)}
 
     @staticmethod
     def validate_structure(playbook_data: List[Dict]) -> List[str]:
@@ -837,23 +787,34 @@ class PlaybookValidator:
 
         for play in playbook_data:
             # Check required fields
-            if 'hosts' not in play:
+            if "hosts" not in play:
                 warnings.append("Play missing 'hosts' field")
 
-            if 'tasks' not in play and 'roles' not in play:
+            if "tasks" not in play and "roles" not in play:
                 warnings.append("Play has neither 'tasks' nor 'roles'")
 
             # Check tasks
-            if 'tasks' in play:
-                for idx, task in enumerate(play['tasks']):
-                    if 'name' not in task:
+            if "tasks" in play:
+                for idx, task in enumerate(play["tasks"]):
+                    if "name" not in task:
                         warnings.append(f"Task {idx + 1} missing 'name' field")
 
                     # Check for at least one action
                     action_modules = [
-                        k for k in task.keys() if k not in
-                        ['name', 'tags', 'when', 'register', 'delegate_to',
-                         'become', 'become_user', 'vars', 'notify']
+                        k
+                        for k in task.keys()
+                        if k
+                        not in [
+                            "name",
+                            "tags",
+                            "when",
+                            "register",
+                            "delegate_to",
+                            "become",
+                            "become_user",
+                            "vars",
+                            "notify",
+                        ]
                     ]
                     if not action_modules:
                         warnings.append(f"Task '{task.get('name', idx + 1)}' has no action module")
@@ -871,7 +832,7 @@ def main():
         "Setup Docker with compose and secure the system",
         "Configure PostgreSQL database with replication and backup",
         "Install and configure Prometheus and Grafana for monitoring",
-        "Harden system security with firewall and SSH configuration"
+        "Harden system security with firewall and SSH configuration",
     ]
 
     for prompt in test_prompts:
@@ -891,8 +852,8 @@ def main():
         validator = PlaybookValidator()
         validation = validator.validate_syntax(playbook)
 
-        if validation['valid']:
-            warnings = validator.validate_structure(validation['data'])
+        if validation["valid"]:
+            warnings = validator.validate_structure(validation["data"])
             print("\nValidation: ✓ Valid")
             if warnings:
                 print(f"Warnings: {warnings}")
