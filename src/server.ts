@@ -1,16 +1,13 @@
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import {
-  CallToolRequest,
-  ListToolsRequest,
-  Tool,
-} from '@modelcontextprotocol/sdk/types.js';
+import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as yaml from 'js-yaml';
 import { z } from 'zod';
+import { AIProvider, createProviderFromEnv } from './providers/index.js';
 
 const execAsync = promisify(exec);
 
@@ -48,6 +45,7 @@ class AnsibleMCPServer {
   private server: Server;
   private playbookTemplates: Map<string, string>;
   private workDir: string;
+  private aiProvider: AIProvider | null;
 
   constructor() {
     this.server = new Server(
@@ -64,16 +62,26 @@ class AnsibleMCPServer {
 
     this.playbookTemplates = new Map();
     this.workDir = '/tmp/ansible-mcp';
+    this.aiProvider = null;
     this.initialize();
   }
 
   private async initialize() {
     // Create working directory
     await fs.mkdir(this.workDir, { recursive: true });
-    
+
+    // Initialize AI provider
+    try {
+      this.aiProvider = createProviderFromEnv();
+      console.log(`AI Provider initialized: ${this.aiProvider.getName()} (${this.aiProvider.getModel()})`);
+    } catch (error) {
+      console.warn('AI Provider initialization failed:', error instanceof Error ? (error as Error).message : String(error));
+      console.warn('Falling back to template-based generation');
+    }
+
     // Load templates
     await this.loadTemplates();
-    
+
     // Setup tool handlers
     this.setupHandlers();
   }
@@ -216,7 +224,7 @@ class AnsibleMCPServer {
 
   private setupHandlers() {
     // List tools handler
-    this.server.setRequestHandler(ListToolsRequest, async () => ({
+    this.server.setRequestHandler("tools/list" as any, async () => ({
       tools: [
         {
           name: 'generate_playbook',
@@ -293,7 +301,7 @@ class AnsibleMCPServer {
     }));
 
     // Call tool handler
-    this.server.setRequestHandler(CallToolRequest, async (request) => {
+    this.server.setRequestHandler("tools/call" as any, async (request) => {
       const { name, arguments: args } = request.params;
 
       switch (name) {
@@ -363,7 +371,7 @@ class AnsibleMCPServer {
             type: 'text',
             text: JSON.stringify({
               success: false,
-              error: error.message
+              error: (error as Error).message
             })
           }
         ]
@@ -372,9 +380,20 @@ class AnsibleMCPServer {
   }
 
   private async generateWithAI(prompt: string, context?: any): Promise<string> {
-    // This would integrate with an LLM to generate the playbook
-    // For now, we'll create a basic structure based on keywords
-    
+    // Use AI provider if available
+    if (this.aiProvider) {
+      try {
+        console.log(`Generating playbook using AI provider: ${this.aiProvider.getName()}`);
+        const generatedPlaybook = await this.aiProvider.generatePlaybook(prompt, context);
+        return generatedPlaybook;
+      } catch (error) {
+        console.error('AI generation failed, falling back to template:', error instanceof Error ? (error as Error).message : String(error));
+        // Fall through to template-based generation
+      }
+    }
+
+    // Fallback to template-based generation
+    console.log('Using template-based generation');
     const playbook = `---
 # Generated playbook from prompt: ${prompt}
 - name: ${prompt}
@@ -382,7 +401,7 @@ class AnsibleMCPServer {
   become: yes
   vars:
     environment: ${context?.environment || 'production'}
-  
+
   tasks:
     - name: Ensure system is updated
       package:
@@ -390,16 +409,15 @@ class AnsibleMCPServer {
         state: latest
       tags:
         - update
-    
+
     - name: Execute main task
       debug:
         msg: "Executing: ${prompt}"
       tags: ${context?.tags ? '\n        - ' + context.tags.join('\n        - ') : '\n        - main'}
-    
-    # TODO: Add specific tasks based on the prompt requirements
-    # This is where AI would generate appropriate tasks
+
+    # Note: Using template-based generation. Configure AI provider for better results.
 `;
-    
+
     return playbook;
   }
 
@@ -425,9 +443,9 @@ class AnsibleMCPServer {
         yaml_errors: yamlValidation.errors,
         ansible_syntax_valid: !syntaxCheck.stderr,
         ansible_syntax_errors: syntaxCheck.stderr,
-        warnings: []
+        warnings: [] as string[]
       };
-      
+
       // Add warnings for best practices
       if (params.strict) {
         results.warnings = this.checkBestPractices(content);
@@ -451,7 +469,7 @@ class AnsibleMCPServer {
             type: 'text',
             text: JSON.stringify({
               success: false,
-              error: error.message
+              error: (error as Error).message
             })
           }
         ]
@@ -466,7 +484,7 @@ class AnsibleMCPServer {
     } catch (error) {
       return { 
         valid: false, 
-        errors: [error.message]
+        errors: [(error as Error).message]
       };
     }
   }
@@ -540,9 +558,9 @@ class AnsibleMCPServer {
             type: 'text',
             text: JSON.stringify({
               success: false,
-              error: error.message,
-              stderr: error.stderr,
-              stdout: error.stdout
+              error: (error as Error).message,
+              stderr: (error as any).stderr,
+              stdout: (error as any).stdout
             })
           }
         ]
@@ -552,17 +570,68 @@ class AnsibleMCPServer {
 
   private async refinePlaybook(args: any) {
     const params = RefinePlaybookSchema.parse(args);
-    
+
     try {
       // Read current playbook
       let content = await fs.readFile(params.playbook_path, 'utf-8');
-      
+
+      // Use AI provider for intelligent refinement if available
+      if (this.aiProvider) {
+        try {
+          console.log('Using AI provider for playbook refinement');
+          const refinementPrompt = `Refine this Ansible playbook based on the following feedback: ${params.feedback}
+
+${params.validation_errors && params.validation_errors.length > 0 ? `\nValidation errors to fix:\n${params.validation_errors.join('\n')}` : ''}
+
+Current playbook:
+${content}
+
+Please provide an improved version of the playbook that addresses the feedback and fixes any errors. Output ONLY the YAML content.`;
+
+          const refinedContent = await this.aiProvider.generate([
+            {
+              role: 'system',
+              content: 'You are an expert Ansible playbook optimizer. Refine playbooks based on feedback while maintaining functionality and best practices.',
+            },
+            {
+              role: 'user',
+              content: refinementPrompt,
+            },
+          ], { temperature: 0.3 }); // Lower temperature for more precise refinements
+
+          const refinedPath = params.playbook_path.replace('.yml', '_refined.yml');
+          await fs.writeFile(refinedPath, refinedContent.content);
+
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({
+                  success: true,
+                  refined_playbook_path: refinedPath,
+                  changes_applied: [
+                    'AI-refined playbook based on feedback: ' + params.feedback,
+                    params.validation_errors ? `Fixed ${params.validation_errors.length} validation errors` : null,
+                  ].filter(Boolean),
+                  refined_content: refinedContent.content,
+                  ai_provider: this.aiProvider.getName(),
+                }, null, 2),
+              },
+            ],
+          };
+        } catch (error) {
+          console.error('AI refinement failed, falling back to rule-based refinement:', error instanceof Error ? (error as Error).message : String(error));
+          // Fall through to rule-based refinement
+        }
+      }
+
+      // Fallback to rule-based refinement
+      console.log('Using rule-based refinement');
+
       // Parse YAML
       const playbook = yaml.load(content) as any;
-      
+
       // Apply refinements based on feedback
-      // This would use AI to understand the feedback and make improvements
-      // For now, we'll do basic improvements
       
       if (params.validation_errors) {
         // Fix common errors
@@ -580,7 +649,7 @@ class AnsibleMCPServer {
       
       // Apply feedback-based improvements
       if (params.feedback.toLowerCase().includes('add error handling')) {
-        playbook[0].tasks = playbook[0].tasks.map(task => ({
+        playbook[0].tasks = playbook[0].tasks.map((task: any) => ({
           ...task,
           ignore_errors: false,
           failed_when: false,
@@ -589,7 +658,7 @@ class AnsibleMCPServer {
       }
       
       if (params.feedback.toLowerCase().includes('make idempotent')) {
-        playbook[0].tasks = playbook[0].tasks.map(task => ({
+        playbook[0].tasks = playbook[0].tasks.map((task: any) => ({
           ...task,
           changed_when: false,
           check_mode: true
@@ -624,7 +693,7 @@ class AnsibleMCPServer {
             type: 'text',
             text: JSON.stringify({
               success: false,
-              error: error.message
+              error: (error as Error).message
             })
           }
         ]
@@ -682,7 +751,7 @@ class AnsibleMCPServer {
             type: 'text',
             text: JSON.stringify({
               success: false,
-              error: error.message
+              error: (error as Error).message
             })
           }
         ]
