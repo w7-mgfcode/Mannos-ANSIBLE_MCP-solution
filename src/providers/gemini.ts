@@ -54,7 +54,7 @@ export class GeminiProvider extends AIProvider {
     super(
       {
         ...config,
-        model: config.model || 'gemini-pro',
+        model: config.model || 'gemini-2.5-flash',
         baseURL: config.baseURL || 'https://generativelanguage.googleapis.com/v1beta',
         timeout: config.timeout || 60000,
         maxRetries: config.maxRetries || 3,
@@ -196,8 +196,16 @@ export class GeminiProvider extends AIProvider {
    */
   static getAvailableModels(): string[] {
     return [
-      'gemini-pro',
-      'gemini-pro-vision',
+      // Gemini 3 (Latest - Most Intelligent)
+      'gemini-3-pro',
+      'gemini-3-deep-think',
+      // Gemini 2.5 Series (Stable)
+      'gemini-2.5-pro',
+      'gemini-2.5-flash',
+      'gemini-2.5-flash-lite',
+      // Gemini 2.0 Series
+      'gemini-2.0-flash',
+      // Legacy Gemini 1.5
       'gemini-1.5-pro',
       'gemini-1.5-flash',
     ];

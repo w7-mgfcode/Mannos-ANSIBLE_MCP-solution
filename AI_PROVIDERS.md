@@ -36,16 +36,20 @@ If no AI provider is configured or if AI generation fails, the server falls back
 ### 1. OpenAI
 
 **Models:**
-- `gpt-4` (recommended)
-- `gpt-4-turbo-preview`
-- `gpt-4-0125-preview`
-- `gpt-3.5-turbo`
-- `gpt-3.5-turbo-16k`
+- `gpt-5` (latest flagship)
+- `gpt-4.1` (recommended)
+- `gpt-4.1-mini` (fast & affordable)
+- `gpt-4.1-nano` (fastest)
+- `o4-mini` (reasoning)
+- `o3` (advanced reasoning)
+- `gpt-4o` (multimodal)
+- `gpt-4o-mini`
 
 **Pros:**
 - High-quality output
 - Fast response times
 - Well-documented API
+- Large context windows (up to 1M tokens)
 
 **Cons:**
 - Requires API key (paid)
@@ -54,45 +58,59 @@ If no AI provider is configured or if AI generation fails, the server falls back
 ### 2. Anthropic (Claude)
 
 **Models:**
-- `claude-3-opus-20240229` (most capable)
-- `claude-3-sonnet-20240229` (balanced)
-- `claude-3-haiku-20240307` (fast & affordable)
-- `claude-2.1`
-- `claude-instant-1.2`
+- `claude-sonnet-4-5-20250929` (latest, best for coding/agents)
+- `claude-haiku-4-5-20251015` (fast & affordable)
+- `claude-opus-4-1-20250805` (most capable)
+- `claude-sonnet-4-20250522` (balanced)
+- `claude-opus-4-20250522` (hybrid reasoning)
+- `claude-3-5-sonnet-20241022` (legacy)
+- `claude-3-5-haiku-20241022` (legacy)
+
+**Note:** Claude 3 Opus deprecated June 2025, Claude 3 Sonnet and Claude 2.1 retired July 2025.
 
 **Pros:**
-- Excellent code generation
-- Strong reasoning capabilities
-- Large context window
+- State-of-the-art coding (SWE-bench leader)
+- Excellent reasoning capabilities
+- Large context window (up to 1M tokens)
+- Extended thinking for complex tasks
 
 **Cons:**
 - Requires API key (paid)
-- Slightly slower than GPT-4
+- Premium pricing for Opus models
 
 ### 3. Google Gemini
 
 **Models:**
-- `gemini-pro`
-- `gemini-1.5-pro`
-- `gemini-1.5-flash`
+- `gemini-3-pro` (latest, most intelligent)
+- `gemini-3-deep-think` (advanced reasoning)
+- `gemini-2.5-pro` (stable)
+- `gemini-2.5-flash` (recommended, fast)
+- `gemini-2.5-flash-lite` (most cost-efficient)
+- `gemini-2.0-flash` (legacy)
+- `gemini-1.5-pro` (legacy)
+- `gemini-1.5-flash` (legacy)
 
 **Pros:**
 - Free tier available
-- Good performance
+- Excellent performance
+- Best vibe coding (WebDev Arena leader)
 - Multimodal capabilities
+- Large context window (1M+ tokens)
 
 **Cons:**
 - API availability may vary by region
-- Less documentation than OpenAI
+- Some models in preview
 
 ### 4. Ollama (Local LLMs)
 
 **Common Models:**
-- `llama2` / `llama2:13b` / `llama2:70b`
+- `llama3.2` / `llama3.2:1b` / `llama3.2:3b` (latest)
+- `llama3.1` / `llama3.1:8b` / `llama3.1:70b` / `llama3.1:405b`
 - `codellama` / `codellama:13b` / `codellama:34b`
-- `mistral`
-- `mixtral`
-- `phi`
+- `qwen2.5` / `qwen2.5-coder`
+- `deepseek-coder-v2`
+- `mistral` / `mixtral`
+- `phi3` / `gemma2`
 
 **Pros:**
 - **Free** - runs locally
@@ -128,7 +146,7 @@ nano .env
 AI_PROVIDER=openai  # or anthropic, gemini, ollama
 
 # Specify the model (optional - uses defaults if not set)
-AI_MODEL=gpt-4
+AI_MODEL=gpt-4.1
 
 # Add your API key (not needed for Ollama)
 OPENAI_API_KEY=sk-your-key-here
@@ -165,15 +183,21 @@ AI_BASE_URL=http://localhost:11434  # For custom Ollama instance
 2. **Configure:**
    ```bash
    AI_PROVIDER=openai
-   AI_MODEL=gpt-4
+   AI_MODEL=gpt-4.1
    OPENAI_API_KEY=sk-your-key-here
    ```
 
-3. **Test:**
+3. **Recommended Models:**
+   - **Production:** `gpt-5` or `gpt-4.1` (best quality)
+   - **Development:** `gpt-4.1-mini` (balanced)
+   - **Testing:** `gpt-4.1-nano` (fastest)
+   - **Reasoning:** `o4-mini` or `o3` (complex tasks)
+
+4. **Test:**
    ```bash
    docker compose up -d ansible-mcp
    docker compose logs -f ansible-mcp
-   # Should see: "AI Provider initialized: OpenAI (gpt-4)"
+   # Should see: "AI Provider initialized: OpenAI (gpt-4.1)"
    ```
 
 ### Anthropic Setup
@@ -187,30 +211,36 @@ AI_BASE_URL=http://localhost:11434  # For custom Ollama instance
 2. **Configure:**
    ```bash
    AI_PROVIDER=anthropic
-   AI_MODEL=claude-3-sonnet-20240229
+   AI_MODEL=claude-sonnet-4-5-20250929
    ANTHROPIC_API_KEY=sk-ant-your-key-here
    ```
 
 3. **Recommended Models:**
-   - **Production:** `claude-3-opus-20240229` (best quality)
-   - **Development:** `claude-3-sonnet-20240229` (balanced)
-   - **Testing:** `claude-3-haiku-20240307` (fast & cheap)
+   - **Production:** `claude-opus-4-1-20250805` (most capable)
+   - **Development:** `claude-sonnet-4-5-20250929` (best for coding/agents)
+   - **Testing:** `claude-haiku-4-5-20251015` (fast & affordable)
 
 ### Google Gemini Setup
 
 1. **Get API Key:**
-   - Go to https://makersuite.google.com/app/apikey
+   - Go to https://aistudio.google.com/app/apikey
    - Create a new API key
    - Copy the key
 
 2. **Configure:**
    ```bash
    AI_PROVIDER=gemini
-   AI_MODEL=gemini-pro
+   AI_MODEL=gemini-2.5-flash
    GEMINI_API_KEY=your-key-here
    ```
 
-3. **Note:** Gemini has a generous free tier (60 requests/minute).
+3. **Recommended Models:**
+   - **Production:** `gemini-3-pro` (most intelligent)
+   - **Development:** `gemini-2.5-flash` (balanced)
+   - **Testing:** `gemini-2.5-flash-lite` (most cost-efficient)
+   - **Reasoning:** `gemini-3-deep-think` (complex tasks)
+
+4. **Note:** Gemini has a generous free tier (60 requests/minute).
 
 ### Ollama Setup (Local)
 
@@ -224,9 +254,11 @@ AI_BASE_URL=http://localhost:11434  # For custom Ollama instance
 
 2. **Pull a Model:**
    ```bash
-   ollama pull codellama  # Good for code generation
+   ollama pull llama3.2  # Latest, good for general use
    # or
-   ollama pull llama2:13b  # Larger model, better quality
+   ollama pull qwen2.5-coder  # Best for code generation
+   # or
+   ollama pull llama3.1:70b  # Larger model, better quality
    ```
 
 3. **Start Ollama:**
@@ -238,7 +270,7 @@ AI_BASE_URL=http://localhost:11434  # For custom Ollama instance
 4. **Configure:**
    ```bash
    AI_PROVIDER=ollama
-   AI_MODEL=codellama
+   AI_MODEL=llama3.2
    # No API key needed!
    ```
 
@@ -292,13 +324,16 @@ You can switch providers without code changes:
 
 ```bash
 # Use OpenAI
-AI_PROVIDER=openai AI_MODEL=gpt-4 docker compose up -d
+AI_PROVIDER=openai AI_MODEL=gpt-4.1 docker compose up -d
 
 # Switch to Claude
-AI_PROVIDER=anthropic AI_MODEL=claude-3-sonnet-20240229 docker compose up -d
+AI_PROVIDER=anthropic AI_MODEL=claude-sonnet-4-5-20250929 docker compose up -d
+
+# Switch to Gemini
+AI_PROVIDER=gemini AI_MODEL=gemini-2.5-flash docker compose up -d
 
 # Switch to local Ollama
-AI_PROVIDER=ollama AI_MODEL=codellama docker compose up -d
+AI_PROVIDER=ollama AI_MODEL=llama3.2 docker compose up -d
 ```
 
 ### Fallback Behavior
@@ -432,7 +467,7 @@ API request failed: 429 Too Many Requests
 
 ```bash
 AI_PROVIDER=openai
-AI_MODEL=gpt-4
+AI_MODEL=gpt-5
 OPENAI_API_KEY=sk-your-key-here
 ```
 
@@ -440,15 +475,7 @@ Or:
 
 ```bash
 AI_PROVIDER=anthropic
-AI_MODEL=claude-3-opus-20240229
-ANTHROPIC_API_KEY=sk-ant-your-key-here
-```
-
-### Development
-
-```bash
-AI_PROVIDER=anthropic
-AI_MODEL=claude-3-sonnet-20240229
+AI_MODEL=claude-opus-4-1-20250805
 ANTHROPIC_API_KEY=sk-ant-your-key-here
 ```
 
@@ -456,7 +483,31 @@ Or:
 
 ```bash
 AI_PROVIDER=gemini
-AI_MODEL=gemini-pro
+AI_MODEL=gemini-3-pro
+GEMINI_API_KEY=your-key-here
+```
+
+### Development
+
+```bash
+AI_PROVIDER=anthropic
+AI_MODEL=claude-sonnet-4-5-20250929
+ANTHROPIC_API_KEY=sk-ant-your-key-here
+```
+
+Or:
+
+```bash
+AI_PROVIDER=openai
+AI_MODEL=gpt-4.1
+OPENAI_API_KEY=sk-your-key-here
+```
+
+Or:
+
+```bash
+AI_PROVIDER=gemini
+AI_MODEL=gemini-2.5-flash
 GEMINI_API_KEY=your-key-here
 ```
 
@@ -464,7 +515,15 @@ GEMINI_API_KEY=your-key-here
 
 ```bash
 AI_PROVIDER=ollama
-AI_MODEL=codellama
+AI_MODEL=llama3.2
+# No API key needed
+```
+
+Or for coding tasks:
+
+```bash
+AI_PROVIDER=ollama
+AI_MODEL=qwen2.5-coder
 # No API key needed
 ```
 

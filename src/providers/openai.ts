@@ -43,7 +43,7 @@ export class OpenAIProvider extends AIProvider {
     super(
       {
         ...config,
-        model: config.model || 'gpt-4',
+        model: config.model || 'gpt-4.1',
         baseURL: config.baseURL || 'https://api.openai.com/v1',
         timeout: config.timeout || 60000,
         maxRetries: config.maxRetries || 3,
@@ -126,13 +126,23 @@ export class OpenAIProvider extends AIProvider {
    */
   static getAvailableModels(): string[] {
     return [
+      // GPT-5 (Latest flagship)
+      'gpt-5',
+      // GPT-4.1 Series (Recommended)
+      'gpt-4.1',
+      'gpt-4.1-mini',
+      'gpt-4.1-nano',
+      // Reasoning Models
+      'o4-mini',
+      'o3',
+      // GPT-4o Series
+      'gpt-4o',
+      'gpt-4o-mini',
+      // Legacy GPT-4
       'gpt-4',
       'gpt-4-turbo-preview',
-      'gpt-4-0125-preview',
-      'gpt-4-1106-preview',
+      // Legacy GPT-3.5
       'gpt-3.5-turbo',
-      'gpt-3.5-turbo-16k',
-      'gpt-3.5-turbo-0125',
     ];
   }
 }
