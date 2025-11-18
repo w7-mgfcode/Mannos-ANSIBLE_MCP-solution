@@ -295,11 +295,15 @@ class PlaybookGenerator:
 
     def _add_monitoring_tasks(self, playbook: Dict):
         """Add monitoring related tasks"""
+        node_exporter_url = (
+            'https://github.com/prometheus/node_exporter/releases/download/'
+            'v1.5.0/node_exporter-1.5.0.linux-amd64.tar.gz'
+        )
         monitoring_tasks = [
             {
                 'name': 'Install node exporter',
                 'unarchive': {
-                    'src': 'https://github.com/prometheus/node_exporter/releases/download/v1.5.0/node_exporter-1.5.0.linux-amd64.tar.gz',
+                    'src': node_exporter_url,
                     'dest': '/opt',
                     'remote_src': True
                 },
@@ -455,6 +459,9 @@ class PlaybookGenerator:
   vars:
     docker_users: []
     docker_compose_version: "2.20.0"
+    docker_repo_url: >-
+      deb [arch=amd64] https://download.docker.com/linux/{{ ansible_distribution | lower }}
+      {{ ansible_distribution_release }} stable
 
   tasks:
     - name: Install required packages
@@ -480,7 +487,7 @@ class PlaybookGenerator:
 
     - name: Add Docker repository
       apt_repository:
-        repo: "deb [arch=amd64] https://download.docker.com/linux/{{ ansible_distribution | lower }} {{ ansible_distribution_release }} stable"
+        repo: "{{ docker_repo_url }}"
         state: present
       tags:
         - setup
@@ -652,6 +659,9 @@ class PlaybookGenerator:
   vars:
     prometheus_version: "2.45.0"
     grafana_version: "10.0.0"
+    prometheus_base: "https://github.com/prometheus/prometheus/releases/download"
+    prometheus_file: "prometheus-{{ prometheus_version }}.linux-amd64.tar.gz"
+    prometheus_url: "{{ prometheus_base }}/v{{ prometheus_version }}/{{ prometheus_file }}"
 
   tasks:
     - name: Create monitoring user
@@ -665,7 +675,7 @@ class PlaybookGenerator:
 
     - name: Download and install Prometheus
       unarchive:
-        src: "https://github.com/prometheus/prometheus/releases/download/v{{ prometheus_version }}/prometheus-{{ prometheus_version }}.linux-amd64.tar.gz"
+        src: "{{ prometheus_url }}"
         dest: /opt
         remote_src: yes
         owner: prometheus
