@@ -3,25 +3,23 @@
  * Tests security features, validation, and core functionality
  */
 
-import { describe, test, expect, beforeAll, afterAll, jest } from '@jest/globals';
-import * as fs from 'fs/promises';
-import * as path from 'path';
+import { describe, test, expect, jest } from '@jest/globals';
 
 // Mock external dependencies
 jest.mock('ioredis', () => {
   return jest.fn().mockImplementation(() => ({
-    connect: jest.fn().mockResolvedValue(undefined),
-    ping: jest.fn().mockResolvedValue('PONG'),
-    get: jest.fn().mockResolvedValue(null),
-    setex: jest.fn().mockResolvedValue('OK'),
-    quit: jest.fn().mockResolvedValue(undefined),
+    connect: jest.fn<() => Promise<void>>().mockResolvedValue(undefined),
+    ping: jest.fn<() => Promise<string>>().mockResolvedValue('PONG'),
+    get: jest.fn<() => Promise<string | null>>().mockResolvedValue(null),
+    setex: jest.fn<() => Promise<string>>().mockResolvedValue('OK'),
+    quit: jest.fn<() => Promise<void>>().mockResolvedValue(undefined),
   }));
 });
 
 jest.mock('node-vault', () => {
   return jest.fn().mockImplementation(() => ({
-    health: jest.fn().mockResolvedValue({ initialized: true }),
-    read: jest.fn().mockResolvedValue({ data: { key: 'value' } }),
+    health: jest.fn<() => Promise<{ initialized: boolean }>>().mockResolvedValue({ initialized: true }),
+    read: jest.fn<() => Promise<{ data: { key: string } }>>().mockResolvedValue({ data: { key: 'value' } }),
   }));
 });
 
@@ -361,12 +359,22 @@ describe('Metrics', () => {
 
     // Verify buckets are in ascending order
     for (let i = 1; i < buckets.length; i++) {
-      expect(buckets[i]).toBeGreaterThan(buckets[i - 1]);
+      const current = buckets[i];
+      const previous = buckets[i - 1];
+      if (current !== undefined && previous !== undefined) {
+        expect(current).toBeGreaterThan(previous);
+      }
     }
 
     // Verify reasonable range for playbook execution
-    expect(buckets[0]).toBeLessThanOrEqual(1);
-    expect(buckets[buckets.length - 1]).toBeGreaterThanOrEqual(60);
+    const firstBucket = buckets[0];
+    const lastBucket = buckets[buckets.length - 1];
+    if (firstBucket !== undefined) {
+      expect(firstBucket).toBeLessThanOrEqual(1);
+    }
+    if (lastBucket !== undefined) {
+      expect(lastBucket).toBeGreaterThanOrEqual(60);
+    }
   });
 });
 
