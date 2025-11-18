@@ -9,10 +9,10 @@ git clone https://github.com/yourusername/ansible-mcp-solution.git
 cd ansible-mcp-solution
 
 # Start all services
-docker-compose up -d
+docker compose up -d
 
 # Check service status
-docker-compose ps
+docker compose ps
 ```
 
 ### 2. Configure Claude Code with MCP
@@ -460,7 +460,7 @@ deploy:
 npm test
 
 # Integration tests
-docker-compose -f docker-compose.test.yml up
+docker compose -f docker-compose.test.yml up
 
 # Lint checks
 npm run lint

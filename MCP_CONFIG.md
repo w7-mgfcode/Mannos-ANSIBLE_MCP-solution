@@ -45,13 +45,13 @@ git clone https://github.com/w7-mgfcode/Mannos-ANSIBLE_MCP-solution.git
 cd Mannos-ANSIBLE_MCP-solution
 
 # 2. Start all services
-docker-compose up -d
+docker compose up -d
 
 # 3. Check status
-docker-compose ps
+docker compose ps
 
 # 4. View logs
-docker-compose logs -f ansible-mcp
+docker compose logs -f ansible-mcp
 ```
 
 **Access points:**
@@ -255,7 +255,7 @@ docker pull ghcr.io/w7-mgfcode/mannos-ansible_mcp-solution-mcp-server:latest
    # Edit .env with your secrets
    ```
 
-3. **For Production**: Use HashiCorp Vault (included in docker-compose)
+3. **For Production**: Use HashiCorp Vault (included in Docker Compose)
 
 ---
 
@@ -310,7 +310,7 @@ All deployment methods include monitoring:
 - **Logs**:
   ```bash
   # Docker Compose
-  docker-compose logs -f ansible-mcp
+  docker compose logs -f ansible-mcp
 
   # Kubernetes
   kubectl logs -f deployment/ansible-mcp
@@ -351,7 +351,7 @@ sudo chown -R $USER:$USER playbooks/ inventory/ logs/
 echo $GITHUB_TOKEN | docker login ghcr.io -u YOUR_USERNAME --password-stdin
 
 # Or build locally
-docker-compose build
+docker compose build
 ```
 
 ### Issue: Codespace won't start

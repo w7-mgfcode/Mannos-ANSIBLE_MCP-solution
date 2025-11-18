@@ -39,7 +39,7 @@ This is an **Ansible MCP (Model Context Protocol) Server** that enables AI-power
 - **TypeScript** (src/server.ts): MCP server implementation using `@modelcontextprotocol/sdk`
 - **Python** (src/playbook_generator.py): AI-powered playbook generation logic
 - **Ansible**: Infrastructure automation and configuration management
-- **Docker**: Containerized deployment via docker-compose
+- **Docker**: Containerized deployment via Docker Compose
 
 **Key Dependencies:**
 - `@modelcontextprotocol/sdk` v0.5.0: MCP protocol implementation
@@ -249,8 +249,8 @@ npm run build               # Compiles to dist/
 npm run dev                 # Uses tsx for hot-reload
 
 # 4. Run with Docker (recommended)
-docker-compose up -d        # Start all services
-docker-compose logs -f ansible-mcp  # View logs
+docker compose up -d        # Start all services
+docker compose logs -f ansible-mcp  # View logs
 ```
 
 ### Making Changes to the MCP Server
@@ -701,7 +701,7 @@ this.server.setRequestHandler(CallToolRequest, async (request) => {
 2. **Test**:
    ```bash
    npm run build
-   docker-compose restart ansible-mcp
+   docker compose restart ansible-mcp
    # Test validation with playbook containing apt_key
    ```
 
@@ -773,7 +773,7 @@ this.server.setRequestHandler(CallToolRequest, async (request) => {
 
 2. **Test with known prompt**:
    ```bash
-   docker-compose logs -f ansible-mcp
+   docker compose logs -f ansible-mcp
    # In another terminal
    curl -X POST http://localhost:3000/execute \
      -H "Content-Type: application/json" \
@@ -868,7 +868,7 @@ def test_analyze_kubernetes_prompt():
 **Test full workflow**:
 ```bash
 # Start services
-docker-compose up -d
+docker compose up -d
 
 # Wait for startup
 sleep 10
@@ -922,28 +922,28 @@ ansible-playbook playbooks/playbook_123.yml -i inventory/hosts --check
 
 **Start all services**:
 ```bash
-docker-compose up -d
+docker compose up -d
 ```
 
 **View logs**:
 ```bash
-docker-compose logs -f ansible-mcp
-docker-compose logs -f ai-generator
+docker compose logs -f ansible-mcp
+docker compose logs -f ai-generator
 ```
 
 **Restart single service**:
 ```bash
-docker-compose restart ansible-mcp
+docker compose restart ansible-mcp
 ```
 
 **Stop all services**:
 ```bash
-docker-compose down
+docker compose down
 ```
 
 **Rebuild after code changes**:
 ```bash
-docker-compose up -d --build ansible-mcp
+docker compose up -d --build ansible-mcp
 ```
 
 ### Standalone Deployment
@@ -996,11 +996,11 @@ After deployment:
 
 ### Issue: MCP Server won't start
 
-**Symptoms**: `docker-compose up` fails for ansible-mcp
+**Symptoms**: `docker compose up` fails for ansible-mcp
 
 **Diagnosis**:
 ```bash
-docker-compose logs ansible-mcp
+docker compose logs ansible-mcp
 ```
 
 **Common Causes**:
@@ -1020,10 +1020,10 @@ docker-compose logs ansible-mcp
 **Diagnosis**:
 ```bash
 # Check MCP server logs
-docker-compose logs ansible-mcp
+docker compose logs ansible-mcp
 
 # Check Python generator logs
-docker-compose logs ai-generator
+docker compose logs ai-generator
 ```
 
 **Common Causes**:
@@ -1085,19 +1085,19 @@ ansible-playbook -i inventory/hosts playbooks/playbook_123.yml -vvv
 **Diagnosis**:
 ```bash
 # Check service status
-docker-compose ps
+docker compose ps
 
 # Check network
 docker network inspect mannos-ansible_mcp-solution_ansible-network
 
 # Test connectivity
-docker-compose exec ansible-mcp ping redis
-docker-compose exec ansible-mcp curl http://vault:8200/v1/sys/health
+docker compose exec ansible-mcp ping redis
+docker compose exec ansible-mcp curl http://vault:8200/v1/sys/health
 ```
 
 **Fixes**:
-1. **Service not running**: `docker-compose up -d redis vault`
-2. **Network issues**: `docker-compose down && docker-compose up -d`
+1. **Service not running**: `docker compose up -d redis vault`
+2. **Network issues**: `docker compose down && docker compose up -d`
 3. **Vault sealed**: Unseal Vault (dev mode shouldn't seal)
 
 ### Issue: TypeScript compilation errors
@@ -1137,7 +1137,7 @@ docker-compose exec ansible-mcp curl http://vault:8200/v1/sys/health
 ### When Debugging
 
 1. **Check logs first**: Most issues show up in logs
-2. **Reproduce locally**: Use docker-compose for consistent environment
+2. **Reproduce locally**: Use docker compose for consistent environment
 3. **Validate assumptions**: Test each component separately
 4. **Use verbose flags**: `-vvv` for Ansible, `DEBUG` for logs
 5. **Ask for clarification**: If unsure, ask the user for more context
@@ -1158,11 +1158,11 @@ docker-compose exec ansible-mcp curl http://vault:8200/v1/sys/health
 
 ```bash
 # Docker
-docker-compose up -d                    # Start all services
-docker-compose down                      # Stop all services
-docker-compose restart ansible-mcp       # Restart MCP server
-docker-compose logs -f ansible-mcp       # Tail logs
-docker-compose exec ansible-mcp bash     # Shell into container
+docker compose up -d                    # Start all services
+docker compose down                      # Stop all services
+docker compose restart ansible-mcp       # Restart MCP server
+docker compose logs -f ansible-mcp       # Tail logs
+docker compose exec ansible-mcp bash     # Shell into container
 
 # TypeScript
 npm install                              # Install dependencies
