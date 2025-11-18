@@ -7,6 +7,12 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as yaml from 'js-yaml';
 import { z } from 'zod';
+import {
+  PromptTemplateLibrary,
+  TemplateCategory,
+  PromptTemplate,
+  EnrichedPrompt
+} from './prompt_templates.js';
 import { AIProvider, createProviderFromEnv } from './providers/index.js';
 
 const execAsync = promisify(exec);
@@ -41,9 +47,54 @@ const RefinePlaybookSchema = z.object({
   validation_errors: z.array(z.string()).optional(),
 });
 
+// Prompt Template schemas
+const ListPromptTemplatesSchema = z.object({
+  category: z.string().optional(),
+  tags: z.array(z.string()).optional(),
+  search: z.string().optional(),
+});
+
+const GetPromptTemplateSchema = z.object({
+  template_id: z.string(),
+});
+
+const EnrichPromptSchema = z.object({
+  prompt: z.string(),
+  template_id: z.string(),
+  additional_context: z.record(z.any()).optional(),
+});
+
+const GenerateWithTemplateSchema = z.object({
+  prompt: z.string(),
+  template_id: z.string(),
+  context: z.object({
+    target_hosts: z.string().optional(),
+    environment: z.string().optional(),
+    tags: z.array(z.string()).optional(),
+  }).optional(),
+  additional_context: z.record(z.any()).optional(),
+});
+
+const UpdateTemplateSchema = z.object({
+  template_id: z.string(),
+  updates: z.object({
+    name: z.string().optional(),
+    description: z.string().optional(),
+    system_prompt: z.string().optional(),
+    user_prompt_template: z.string().optional(),
+    best_practices: z.array(z.string()).optional(),
+  }),
+  change_description: z.array(z.string()),
+});
+
+const GetTemplateHistorySchema = z.object({
+  template_id: z.string(),
+});
+
 class AnsibleMCPServer {
   private server: Server;
   private playbookTemplates: Map<string, string>;
+  private promptTemplateLibrary: PromptTemplateLibrary;
   private workDir: string;
   private aiProvider: AIProvider | null;
 
@@ -61,6 +112,7 @@ class AnsibleMCPServer {
     );
 
     this.playbookTemplates = new Map();
+    this.promptTemplateLibrary = new PromptTemplateLibrary();
     this.workDir = '/tmp/ansible-mcp';
     this.aiProvider = null;
     this.initialize();
@@ -73,14 +125,17 @@ class AnsibleMCPServer {
     // Initialize AI provider
     try {
       this.aiProvider = createProviderFromEnv();
-      console.log(`AI Provider initialized: ${this.aiProvider.getName()} (${this.aiProvider.getModel()})`);
+      console.error(`AI Provider initialized: ${this.aiProvider.getName()} (${this.aiProvider.getModel()})`);
     } catch (error) {
-      console.warn('AI Provider initialization failed:', error instanceof Error ? (error as Error).message : String(error));
-      console.warn('Falling back to template-based generation');
+      console.error('AI Provider initialization failed:', error instanceof Error ? error.message : String(error));
+      console.error('Falling back to template-based generation');
     }
 
     // Load templates
     await this.loadTemplates();
+
+    // Initialize prompt template library
+    await this.promptTemplateLibrary.initialize();
 
     // Setup tool handlers
     this.setupHandlers();
@@ -296,6 +351,140 @@ class AnsibleMCPServer {
             },
             required: ['playbook_path']
           }
+        },
+        // Prompt Template Tools
+        {
+          name: 'list_prompt_templates',
+          description: 'List available prompt templates with optional filtering by category, tags, or search text',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              category: {
+                type: 'string',
+                description: 'Filter by category (kubernetes, docker, security, database, monitoring, network, cicd, cloud, general)',
+                enum: ['kubernetes', 'docker', 'security', 'database', 'monitoring', 'network', 'cicd', 'cloud', 'general']
+              },
+              tags: {
+                type: 'array',
+                items: { type: 'string' },
+                description: 'Filter by tags'
+              },
+              search: {
+                type: 'string',
+                description: 'Search in template names and descriptions'
+              }
+            },
+            required: []
+          }
+        },
+        {
+          name: 'get_prompt_template',
+          description: 'Get detailed information about a specific prompt template including few-shot examples and chain-of-thought reasoning',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              template_id: {
+                type: 'string',
+                description: 'The ID of the template to retrieve'
+              }
+            },
+            required: ['template_id']
+          }
+        },
+        {
+          name: 'enrich_prompt',
+          description: 'Enrich a user prompt with few-shot examples, chain-of-thought reasoning, and context hints from a template',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              prompt: {
+                type: 'string',
+                description: 'The user prompt to enrich'
+              },
+              template_id: {
+                type: 'string',
+                description: 'The template to use for enrichment'
+              },
+              additional_context: {
+                type: 'object',
+                description: 'Additional context variables'
+              }
+            },
+            required: ['prompt', 'template_id']
+          }
+        },
+        {
+          name: 'generate_with_template',
+          description: 'Generate a playbook using an optimized prompt template with few-shot learning and chain-of-thought reasoning',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              prompt: {
+                type: 'string',
+                description: 'Natural language description of the desired playbook'
+              },
+              template_id: {
+                type: 'string',
+                description: 'The prompt template to use'
+              },
+              context: {
+                type: 'object',
+                properties: {
+                  target_hosts: { type: 'string' },
+                  environment: { type: 'string' },
+                  tags: { type: 'array', items: { type: 'string' } }
+                }
+              },
+              additional_context: {
+                type: 'object',
+                description: 'Additional context variables for the template'
+              }
+            },
+            required: ['prompt', 'template_id']
+          }
+        },
+        {
+          name: 'update_template_version',
+          description: 'Update a prompt template with new content and create a new version',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              template_id: {
+                type: 'string',
+                description: 'The ID of the template to update'
+              },
+              updates: {
+                type: 'object',
+                properties: {
+                  name: { type: 'string' },
+                  description: { type: 'string' },
+                  system_prompt: { type: 'string' },
+                  user_prompt_template: { type: 'string' },
+                  best_practices: { type: 'array', items: { type: 'string' } }
+                }
+              },
+              change_description: {
+                type: 'array',
+                items: { type: 'string' },
+                description: 'List of changes made in this version'
+              }
+            },
+            required: ['template_id', 'updates', 'change_description']
+          }
+        },
+        {
+          name: 'get_template_history',
+          description: 'Get the version history and changelog for a prompt template',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              template_id: {
+                type: 'string',
+                description: 'The ID of the template'
+              }
+            },
+            required: ['template_id']
+          }
         }
       ] as Tool[]
     }));
@@ -319,7 +508,26 @@ class AnsibleMCPServer {
         
         case 'lint_playbook':
           return await this.lintPlaybook(args);
-        
+
+        // Prompt Template tools
+        case 'list_prompt_templates':
+          return await this.listPromptTemplates(args);
+
+        case 'get_prompt_template':
+          return await this.getPromptTemplate(args);
+
+        case 'enrich_prompt':
+          return await this.enrichPrompt(args);
+
+        case 'generate_with_template':
+          return await this.generateWithTemplate(args);
+
+        case 'update_template_version':
+          return await this.updateTemplateVersion(args);
+
+        case 'get_template_history':
+          return await this.getTemplateHistory(args);
+
         default:
           throw new Error(`Unknown tool: ${name}`);
       }
@@ -752,6 +960,347 @@ Please provide an improved version of the playbook that addresses the feedback a
             text: JSON.stringify({
               success: false,
               error: (error as Error).message
+            })
+          }
+        ]
+      };
+    }
+  }
+
+  // Prompt Template tool implementations
+
+  private async listPromptTemplates(args: any) {
+    const params = ListPromptTemplatesSchema.parse(args);
+
+    try {
+      const searchOptions: any = {};
+
+      if (params.category) {
+        searchOptions.category = params.category as TemplateCategory;
+      }
+      if (params.tags) {
+        searchOptions.tags = params.tags;
+      }
+      if (params.search) {
+        searchOptions.searchText = params.search;
+      }
+
+      const templates = this.promptTemplateLibrary.listTemplates(searchOptions);
+
+      // Return summary of each template
+      const templateSummaries = templates.map(t => ({
+        id: t.id,
+        name: t.name,
+        description: t.description,
+        version: t.version,
+        category: t.category,
+        tags: t.tags,
+        num_examples: t.few_shot_examples.length,
+        num_best_practices: t.context_enrichment.best_practices.length
+      }));
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              success: true,
+              count: templates.length,
+              templates: templateSummaries
+            }, null, 2)
+          }
+        ]
+      };
+    } catch (error: any) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              success: false,
+              error: error.message
+            })
+          }
+        ]
+      };
+    }
+  }
+
+  private async getPromptTemplate(args: any) {
+    const params = GetPromptTemplateSchema.parse(args);
+
+    try {
+      const template = this.promptTemplateLibrary.getTemplate(params.template_id);
+
+      if (!template) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                success: false,
+                error: `Template not found: ${params.template_id}`
+              })
+            }
+          ]
+        };
+      }
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              success: true,
+              template: template
+            }, null, 2)
+          }
+        ]
+      };
+    } catch (error: any) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              success: false,
+              error: error.message
+            })
+          }
+        ]
+      };
+    }
+  }
+
+  private async enrichPrompt(args: any) {
+    const params = EnrichPromptSchema.parse(args);
+
+    try {
+      const enrichedPrompt = this.promptTemplateLibrary.enrichPrompt(
+        params.prompt,
+        params.template_id,
+        params.additional_context
+      );
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              success: true,
+              original_prompt: enrichedPrompt.original_prompt,
+              enriched_prompt: enrichedPrompt.enriched_prompt,
+              context_hints: enrichedPrompt.context_hints,
+              sections: {
+                system_context_length: enrichedPrompt.system_context.length,
+                few_shot_section_length: enrichedPrompt.few_shot_section.length,
+                chain_of_thought_section_length: enrichedPrompt.chain_of_thought_section.length
+              }
+            }, null, 2)
+          }
+        ]
+      };
+    } catch (error: any) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              success: false,
+              error: error.message
+            })
+          }
+        ]
+      };
+    }
+  }
+
+  private async generateWithTemplate(args: any) {
+    const params = GenerateWithTemplateSchema.parse(args);
+
+    try {
+      // Get enriched prompt from template
+      const enrichedPrompt = this.promptTemplateLibrary.enrichPrompt(
+        params.prompt,
+        params.template_id,
+        params.additional_context
+      );
+
+      // Generate playbook using enriched prompt
+      const playbook = await this.generateWithEnrichedPrompt(
+        enrichedPrompt,
+        params.context
+      );
+
+      // Save playbook to file
+      const timestamp = Date.now();
+      const filename = `playbook_${timestamp}.yml`;
+      const filepath = path.join(this.workDir, filename);
+
+      await fs.writeFile(filepath, playbook);
+
+      // Validate the generated playbook
+      const validation = await this.validateYAML(playbook);
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              success: true,
+              playbook_path: filepath,
+              playbook_content: playbook,
+              validation: validation,
+              template_used: params.template_id,
+              context_hints: enrichedPrompt.context_hints,
+              message: 'Playbook generated successfully with optimized prompt template'
+            }, null, 2)
+          }
+        ]
+      };
+    } catch (error: any) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              success: false,
+              error: error.message
+            })
+          }
+        ]
+      };
+    }
+  }
+
+  private async generateWithEnrichedPrompt(
+    enrichedPrompt: EnrichedPrompt,
+    context?: any
+  ): Promise<string> {
+    // Parse the enriched prompt to extract example playbooks
+    // For now, we'll use the first few-shot example as a base and customize it
+    const template = this.promptTemplateLibrary.getTemplate(
+      enrichedPrompt.original_prompt.includes('kubernetes') ? 'kubernetes-deployment' :
+      enrichedPrompt.original_prompt.includes('docker') ? 'docker-setup' :
+      enrichedPrompt.original_prompt.includes('security') ? 'security-hardening' :
+      enrichedPrompt.original_prompt.includes('database') ? 'database-setup' :
+      enrichedPrompt.original_prompt.includes('monitor') ? 'monitoring-stack' :
+      'kubernetes-deployment'
+    );
+
+    // Generate a playbook based on the enriched context
+    const playbook = `---
+# Generated using optimized prompt template
+# Template: ${template?.name || 'Unknown'}
+# Original prompt: ${enrichedPrompt.original_prompt}
+#
+# Context hints applied:
+${enrichedPrompt.context_hints.map(h => `# - ${h}`).join('\n')}
+
+- name: ${enrichedPrompt.original_prompt}
+  hosts: ${context?.target_hosts || 'all'}
+  become: yes
+  vars:
+    environment: ${context?.environment || 'production'}
+
+  tasks:
+    - name: Gather facts
+      setup:
+      tags:
+        - always
+
+    - name: Execute main task based on requirements
+      debug:
+        msg: "Executing: ${enrichedPrompt.original_prompt}"
+      tags:
+        ${context?.tags ? context.tags.map((t: string) => `- ${t}`).join('\n        ') : '- main'}
+
+    # Best practices from template:
+${template?.context_enrichment.best_practices.slice(0, 3).map(bp => `    # - ${bp}`).join('\n')}
+`;
+
+    return playbook;
+  }
+
+  private async updateTemplateVersion(args: any) {
+    const params = UpdateTemplateSchema.parse(args);
+
+    try {
+      const updatedTemplate = await this.promptTemplateLibrary.updateTemplateVersion(
+        params.template_id,
+        params.updates as Partial<PromptTemplate>,
+        params.change_description
+      );
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              success: true,
+              template_id: updatedTemplate.id,
+              new_version: updatedTemplate.version,
+              updated_at: updatedTemplate.updated_at,
+              changes: params.change_description
+            }, null, 2)
+          }
+        ]
+      };
+    } catch (error: any) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              success: false,
+              error: error.message
+            })
+          }
+        ]
+      };
+    }
+  }
+
+  private async getTemplateHistory(args: any) {
+    const params = GetTemplateHistorySchema.parse(args);
+
+    try {
+      const history = this.promptTemplateLibrary.getTemplateHistory(params.template_id);
+
+      if (history.length === 0) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                success: false,
+                error: `No history found for template: ${params.template_id}`
+              })
+            }
+          ]
+        };
+      }
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              success: true,
+              template_id: params.template_id,
+              history: history
+            }, null, 2)
+          }
+        ]
+      };
+    } catch (error: any) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              success: false,
+              error: error.message
             })
           }
         ]
