@@ -41,7 +41,7 @@ export class AnthropicProvider extends AIProvider {
     super(
       {
         ...config,
-        model: config.model || 'claude-3-sonnet-20240229',
+        model: config.model || 'claude-sonnet-4-5-20250929',
         baseURL: config.baseURL || 'https://api.anthropic.com/v1',
         timeout: config.timeout || 60000,
         maxRetries: config.maxRetries || 3,
@@ -138,12 +138,18 @@ export class AnthropicProvider extends AIProvider {
    */
   static getAvailableModels(): string[] {
     return [
-      'claude-3-opus-20240229',
-      'claude-3-sonnet-20240229',
-      'claude-3-haiku-20240307',
-      'claude-2.1',
-      'claude-2.0',
-      'claude-instant-1.2',
+      // Claude 4.5 Series (Latest)
+      'claude-sonnet-4-5-20250929',
+      'claude-haiku-4-5-20251015',
+      // Claude 4 Series
+      'claude-opus-4-1-20250805',
+      'claude-sonnet-4-20250522',
+      'claude-opus-4-20250522',
+      // Claude 3.5 Series (Legacy but available)
+      'claude-3-5-sonnet-20241022',
+      'claude-3-5-haiku-20241022',
+      // Note: Claude 3 Opus deprecated June 2025, retiring Jan 2026
+      // Note: Claude 3 Sonnet and Claude 2.1 retired July 2025
     ];
   }
 }

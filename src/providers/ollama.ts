@@ -51,7 +51,7 @@ export class OllamaProvider extends AIProvider {
       {
         ...config,
         apiKey: config.apiKey || 'not-required', // Ollama doesn't require API key
-        model: config.model || 'llama2',
+        model: config.model || 'llama3.2',
         baseURL: config.baseURL || 'http://localhost:11434',
         timeout: config.timeout || 120000, // Local models may be slower
         maxRetries: config.maxRetries || 3,
@@ -183,19 +183,29 @@ export class OllamaProvider extends AIProvider {
    */
   static getCommonModels(): string[] {
     return [
-      'llama2',
-      'llama2:13b',
-      'llama2:70b',
+      // Llama 3.2 Series (Latest)
+      'llama3.2',
+      'llama3.2:1b',
+      'llama3.2:3b',
+      // Llama 3.1 Series
+      'llama3.1',
+      'llama3.1:8b',
+      'llama3.1:70b',
+      'llama3.1:405b',
+      // Code Llama
       'codellama',
       'codellama:13b',
       'codellama:34b',
+      // Mistral/Mixtral
       'mistral',
       'mixtral',
-      'neural-chat',
-      'starling-lm',
-      'phi',
-      'orca-mini',
-      'vicuna',
+      'mixtral:8x7b',
+      // Other Popular Models
+      'qwen2.5',
+      'qwen2.5-coder',
+      'deepseek-coder-v2',
+      'phi3',
+      'gemma2',
     ];
   }
 
