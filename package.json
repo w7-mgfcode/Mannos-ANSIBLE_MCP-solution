@@ -9,7 +9,7 @@
     "start": "node dist/server.js",
     "dev": "tsx src/server.ts",
     "test": "jest",
-    "lint": "eslint src/**/*.ts",
+    "lint": "ESLINT_USE_FLAT_CONFIG=false eslint src/**/*.ts",
     "format": "prettier --write src/**/*.ts"
   },
   "dependencies": {
