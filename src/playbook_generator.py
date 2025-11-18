@@ -190,7 +190,7 @@ class PlaybookGenerator:
                 {"name": "Gather system facts", "setup": {}, "tags": ["always"]},
                 {
                     "name": "Ensure system packages are updated",
-                    "package": {"name": "*", "state": "latest"},
+                    "package": {"name": "*", "state": "present"},
                     "tags": ["update"],
                 },
             ],
@@ -202,7 +202,11 @@ class PlaybookGenerator:
         self, playbook: str, context: PlaybookContext
     ) -> str:
         """Enhance playbook based on requirements"""
-        playbook_data = yaml.safe_load(playbook)
+        try:
+            playbook_data = yaml.safe_load(playbook)
+        except yaml.YAMLError as e:
+            logger.error(f"Failed to parse playbook during enhancement: {e}")
+            return playbook
 
         for req in context.requirements:
             if req == "high_availability":
@@ -218,7 +222,11 @@ class PlaybookGenerator:
 
     def _add_custom_tasks(self, playbook: str, context: PlaybookContext) -> str:
         """Add custom tasks based on the prompt analysis"""
-        playbook_data = yaml.safe_load(playbook)
+        try:
+            playbook_data = yaml.safe_load(playbook)
+        except yaml.YAMLError as e:
+            logger.error(f"Failed to parse playbook during custom task addition: {e}")
+            return playbook
 
         # Analyze prompt for specific actions
         if "install" in context.prompt.lower():
@@ -282,9 +290,13 @@ class PlaybookGenerator:
         if "handlers" not in playbook:
             playbook["handlers"] = []
 
-        playbook["handlers"].append(
-            {"name": "restart sshd", "service": {"name": "sshd", "state": "restarted"}}
-        )
+        # Check for duplicate handler before appending
+        handler = {
+            "name": "restart sshd",
+            "service": {"name": "sshd", "state": "restarted"},
+        }
+        if not any(h.get("name") == "restart sshd" for h in playbook["handlers"]):
+            playbook["handlers"].append(handler)
 
     def _add_monitoring_tasks(self, playbook: Dict):
         """Add monitoring related tasks"""
@@ -542,7 +554,7 @@ class PlaybookGenerator:
     - name: Upgrade all packages
       package:
         name: '*'
-        state: latest
+        state: present
       tags:
         - update
         - system
@@ -721,7 +733,7 @@ class PlaybookGenerator:
     - name: Update all packages
       package:
         name: '*'
-        state: latest
+        state: present
       tags:
         - update
         - security
@@ -847,6 +859,15 @@ class PlaybookValidator:
                             "become_user",
                             "vars",
                             "notify",
+                            "loop",
+                            "with_items",
+                            "block",
+                            "rescue",
+                            "always",
+                            "environment",
+                            "changed_when",
+                            "failed_when",
+                            "ignore_errors",
                         ]
                     ]
                     if not action_modules:
