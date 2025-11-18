@@ -5,9 +5,12 @@
 [![Python Version](https://img.shields.io/badge/python-%3E%3D3.10-blue)](https://www.python.org)
 [![Ansible Version](https://img.shields.io/badge/ansible-%3E%3D2.15-red)](https://www.ansible.com)
 [![Docker](https://img.shields.io/badge/docker-%3E%3D20.10-blue)](https://www.docker.com)
-[![MCP Protocol](https://img.shields.io/badge/MCP-v1.0-purple)](https://modelcontextprotocol.io)
+[![MCP Protocol](https://img.shields.io/badge/MCP_SDK-v1.22.0-purple)](https://modelcontextprotocol.io)
+[![Server Version](https://img.shields.io/badge/Version-2.0.0-blue)](https://github.com/w7-mgfcode/Mannos-ANSIBLE_MCP-solution)
 
 An intelligent Ansible playbook generator that leverages the Model Context Protocol (MCP) to transform natural language prompts into production-ready Ansible playbooks. This solution integrates AI capabilities with DevOps best practices to automate infrastructure provisioning and configuration management.
+
+**🆕 v2.0.0**: Full MCP 2025-03-26 specification compliance with tool annotations, enhanced error handling, and McpServer high-level API.
 
 ## ✨ Features
 
