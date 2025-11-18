@@ -1,6 +1,10 @@
-import { Server } from '@modelcontextprotocol/sdk/server/index.js';
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import type { Tool } from '@modelcontextprotocol/sdk/types.js';
+import type {
+  CallToolResult,
+  ToolAnnotations,
+  ServerCapabilities
+} from '@modelcontextprotocol/sdk/types.js';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import * as fs from 'fs/promises';
@@ -91,23 +95,30 @@ const GetTemplateHistorySchema = z.object({
   template_id: z.string(),
 });
 
+// Server capabilities declaration for MCP compliance
+const serverCapabilities: ServerCapabilities = {
+  tools: {
+    listChanged: true,
+  },
+  logging: {},
+};
+
 class AnsibleMCPServer {
-  private server: Server;
+  private server: McpServer;
   private playbookTemplates: Map<string, string>;
   private promptTemplateLibrary: PromptTemplateLibrary;
   private workDir: string;
   private aiProvider: AIProvider | null;
 
   constructor() {
-    this.server = new Server(
+    this.server = new McpServer(
       {
         name: 'ansible-mcp-server',
-        version: '1.0.0',
+        version: '2.0.0',
       },
       {
-        capabilities: {
-          tools: {},
-        },
+        capabilities: serverCapabilities,
+        instructions: 'Ansible MCP Server for AI-powered playbook generation and automation. Supports playbook creation, validation, execution, and refinement with template-based and AI-enhanced workflows.',
       }
     );
 
@@ -278,268 +289,213 @@ class AnsibleMCPServer {
   }
 
   private setupHandlers() {
-    // List tools handler
-    this.server.setRequestHandler("tools/list" as any, async () => ({
-      tools: [
-        {
-          name: 'generate_playbook',
-          description: 'Generate an Ansible playbook based on a prompt',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              prompt: { type: 'string', description: 'Natural language description of the desired playbook' },
-              template: { type: 'string', description: 'Optional template name to use' },
-              context: { 
-                type: 'object',
-                properties: {
-                  target_hosts: { type: 'string' },
-                  environment: { type: 'string' },
-                  tags: { type: 'array', items: { type: 'string' } }
-                }
-              }
-            },
-            required: ['prompt']
-          }
-        },
-        {
-          name: 'validate_playbook',
-          description: 'Validate an Ansible playbook for syntax and best practices',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              playbook_path: { type: 'string' },
-              strict: { type: 'boolean', description: 'Enable strict validation' }
-            },
-            required: ['playbook_path']
-          }
-        },
-        {
-          name: 'run_playbook',
-          description: 'Execute an Ansible playbook',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              playbook_path: { type: 'string' },
-              inventory: { type: 'string' },
-              extra_vars: { type: 'object' },
-              check_mode: { type: 'boolean' },
-              tags: { type: 'array', items: { type: 'string' } }
-            },
-            required: ['playbook_path', 'inventory']
-          }
-        },
-        {
-          name: 'refine_playbook',
-          description: 'Refine and improve an existing playbook based on feedback',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              playbook_path: { type: 'string' },
-              feedback: { type: 'string' },
-              validation_errors: { type: 'array', items: { type: 'string' } }
-            },
-            required: ['playbook_path', 'feedback']
-          }
-        },
-        {
-          name: 'lint_playbook',
-          description: 'Run ansible-lint on a playbook',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              playbook_path: { type: 'string' }
-            },
-            required: ['playbook_path']
-          }
-        },
-        // Prompt Template Tools
-        {
-          name: 'list_prompt_templates',
-          description: 'List available prompt templates with optional filtering by category, tags, or search text',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              category: {
-                type: 'string',
-                description: 'Filter by category (kubernetes, docker, security, database, monitoring, network, cicd, cloud, general)',
-                enum: ['kubernetes', 'docker', 'security', 'database', 'monitoring', 'network', 'cicd', 'cloud', 'general']
-              },
-              tags: {
-                type: 'array',
-                items: { type: 'string' },
-                description: 'Filter by tags'
-              },
-              search: {
-                type: 'string',
-                description: 'Search in template names and descriptions'
-              }
-            },
-            required: []
-          }
-        },
-        {
-          name: 'get_prompt_template',
-          description: 'Get detailed information about a specific prompt template including few-shot examples and chain-of-thought reasoning',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              template_id: {
-                type: 'string',
-                description: 'The ID of the template to retrieve'
-              }
-            },
-            required: ['template_id']
-          }
-        },
-        {
-          name: 'enrich_prompt',
-          description: 'Enrich a user prompt with few-shot examples, chain-of-thought reasoning, and context hints from a template',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              prompt: {
-                type: 'string',
-                description: 'The user prompt to enrich'
-              },
-              template_id: {
-                type: 'string',
-                description: 'The template to use for enrichment'
-              },
-              additional_context: {
-                type: 'object',
-                description: 'Additional context variables'
-              }
-            },
-            required: ['prompt', 'template_id']
-          }
-        },
-        {
-          name: 'generate_with_template',
-          description: 'Generate a playbook using an optimized prompt template with few-shot learning and chain-of-thought reasoning',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              prompt: {
-                type: 'string',
-                description: 'Natural language description of the desired playbook'
-              },
-              template_id: {
-                type: 'string',
-                description: 'The prompt template to use'
-              },
-              context: {
-                type: 'object',
-                properties: {
-                  target_hosts: { type: 'string' },
-                  environment: { type: 'string' },
-                  tags: { type: 'array', items: { type: 'string' } }
-                }
-              },
-              additional_context: {
-                type: 'object',
-                description: 'Additional context variables for the template'
-              }
-            },
-            required: ['prompt', 'template_id']
-          }
-        },
-        {
-          name: 'update_template_version',
-          description: 'Update a prompt template with new content and create a new version',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              template_id: {
-                type: 'string',
-                description: 'The ID of the template to update'
-              },
-              updates: {
-                type: 'object',
-                properties: {
-                  name: { type: 'string' },
-                  description: { type: 'string' },
-                  system_prompt: { type: 'string' },
-                  user_prompt_template: { type: 'string' },
-                  best_practices: { type: 'array', items: { type: 'string' } }
-                }
-              },
-              change_description: {
-                type: 'array',
-                items: { type: 'string' },
-                description: 'List of changes made in this version'
-              }
-            },
-            required: ['template_id', 'updates', 'change_description']
-          }
-        },
-        {
-          name: 'get_template_history',
-          description: 'Get the version history and changelog for a prompt template',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              template_id: {
-                type: 'string',
-                description: 'The ID of the template'
-              }
-            },
-            required: ['template_id']
-          }
-        }
-      ] as Tool[]
-    }));
+    // Tool annotations for MCP compliance
+    const readOnlyAnnotations: ToolAnnotations = {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+    };
 
-    // Call tool handler
-    this.server.setRequestHandler("tools/call" as any, async (request) => {
-      const { name, arguments: args } = request.params;
+    const generativeAnnotations: ToolAnnotations = {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+    };
 
-      switch (name) {
-        case 'generate_playbook':
-          return await this.generatePlaybook(args);
-        
-        case 'validate_playbook':
-          return await this.validatePlaybook(args);
-        
-        case 'run_playbook':
-          return await this.runPlaybook(args);
-        
-        case 'refine_playbook':
-          return await this.refinePlaybook(args);
-        
-        case 'lint_playbook':
-          return await this.lintPlaybook(args);
+    const executionAnnotations: ToolAnnotations = {
+      readOnlyHint: false,
+      destructiveHint: true,
+      idempotentHint: false,
+    };
 
-        // Prompt Template tools
-        case 'list_prompt_templates':
-          return await this.listPromptTemplates(args);
+    const modifyAnnotations: ToolAnnotations = {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+    };
 
-        case 'get_prompt_template':
-          return await this.getPromptTemplate(args);
+    // Register generate_playbook tool
+    this.server.registerTool(
+      'generate_playbook',
+      {
+        description: 'Generate an Ansible playbook based on a natural language prompt. Supports template-based and AI-enhanced generation.',
+        inputSchema: {
+          prompt: z.string().describe('Natural language description of the desired playbook'),
+          template: z.string().optional().describe('Optional template name to use (kubernetes_deployment, docker_setup, system_hardening)'),
+          context: z.object({
+            target_hosts: z.string().optional().describe('Target hosts or host group'),
+            environment: z.string().optional().describe('Environment (production, staging, development)'),
+            tags: z.array(z.string()).optional().describe('Tags for selective execution'),
+          }).optional().describe('Additional context for playbook generation'),
+        },
+        annotations: generativeAnnotations,
+      },
+      async (args) => this.generatePlaybook(args)
+    );
 
-        case 'enrich_prompt':
-          return await this.enrichPrompt(args);
+    // Register validate_playbook tool
+    this.server.registerTool(
+      'validate_playbook',
+      {
+        description: 'Validate an Ansible playbook for YAML syntax, Ansible syntax, and best practices.',
+        inputSchema: {
+          playbook_path: z.string().describe('Path to the playbook file to validate'),
+          strict: z.boolean().optional().describe('Enable strict validation with best practice checks'),
+        },
+        annotations: readOnlyAnnotations,
+      },
+      async (args) => this.validatePlaybook(args)
+    );
 
-        case 'generate_with_template':
-          return await this.generateWithTemplate(args);
+    // Register run_playbook tool
+    this.server.registerTool(
+      'run_playbook',
+      {
+        description: 'Execute an Ansible playbook against the specified inventory. Use check_mode for dry runs.',
+        inputSchema: {
+          playbook_path: z.string().describe('Path to the playbook file to execute'),
+          inventory: z.string().describe('Inventory file or host pattern'),
+          extra_vars: z.record(z.any()).optional().describe('Extra variables to pass to the playbook'),
+          check_mode: z.boolean().optional().describe('Run in check mode (dry run)'),
+          tags: z.array(z.string()).optional().describe('Run only tasks with these tags'),
+        },
+        annotations: executionAnnotations,
+      },
+      async (args) => this.runPlaybook(args)
+    );
 
-        case 'update_template_version':
-          return await this.updateTemplateVersion(args);
+    // Register refine_playbook tool
+    this.server.registerTool(
+      'refine_playbook',
+      {
+        description: 'Refine and improve an existing playbook based on feedback and validation errors.',
+        inputSchema: {
+          playbook_path: z.string().describe('Path to the playbook file to refine'),
+          feedback: z.string().describe('Feedback describing desired improvements'),
+          validation_errors: z.array(z.string()).optional().describe('Validation errors to fix'),
+        },
+        annotations: modifyAnnotations,
+      },
+      async (args) => this.refinePlaybook(args)
+    );
 
-        case 'get_template_history':
-          return await this.getTemplateHistory(args);
+    // Register lint_playbook tool
+    this.server.registerTool(
+      'lint_playbook',
+      {
+        description: 'Run ansible-lint on a playbook to check for best practices and common issues.',
+        inputSchema: {
+          playbook_path: z.string().describe('Path to the playbook file to lint'),
+        },
+        annotations: readOnlyAnnotations,
+      },
+      async (args) => this.lintPlaybook(args)
+    );
 
-        default:
-          throw new Error(`Unknown tool: ${name}`);
-      }
-    });
+    // Register list_prompt_templates tool
+    this.server.registerTool(
+      'list_prompt_templates',
+      {
+        description: 'List available prompt templates with optional filtering by category, tags, or search text.',
+        inputSchema: {
+          category: z.enum(['kubernetes', 'docker', 'security', 'database', 'monitoring', 'network', 'cicd', 'cloud', 'general']).optional().describe('Filter by category'),
+          tags: z.array(z.string()).optional().describe('Filter by tags'),
+          search: z.string().optional().describe('Search in template names and descriptions'),
+        },
+        annotations: readOnlyAnnotations,
+      },
+      async (args) => this.listPromptTemplates(args)
+    );
+
+    // Register get_prompt_template tool
+    this.server.registerTool(
+      'get_prompt_template',
+      {
+        description: 'Get detailed information about a specific prompt template including few-shot examples and chain-of-thought reasoning.',
+        inputSchema: {
+          template_id: z.string().describe('The ID of the template to retrieve'),
+        },
+        annotations: readOnlyAnnotations,
+      },
+      async (args) => this.getPromptTemplate(args)
+    );
+
+    // Register enrich_prompt tool
+    this.server.registerTool(
+      'enrich_prompt',
+      {
+        description: 'Enrich a user prompt with few-shot examples, chain-of-thought reasoning, and context hints from a template.',
+        inputSchema: {
+          prompt: z.string().describe('The user prompt to enrich'),
+          template_id: z.string().describe('The template to use for enrichment'),
+          additional_context: z.record(z.any()).optional().describe('Additional context variables'),
+        },
+        annotations: readOnlyAnnotations,
+      },
+      async (args) => this.enrichPrompt(args)
+    );
+
+    // Register generate_with_template tool
+    this.server.registerTool(
+      'generate_with_template',
+      {
+        description: 'Generate a playbook using an optimized prompt template with few-shot learning and chain-of-thought reasoning.',
+        inputSchema: {
+          prompt: z.string().describe('Natural language description of the desired playbook'),
+          template_id: z.string().describe('The prompt template to use'),
+          context: z.object({
+            target_hosts: z.string().optional(),
+            environment: z.string().optional(),
+            tags: z.array(z.string()).optional(),
+          }).optional().describe('Playbook context'),
+          additional_context: z.record(z.any()).optional().describe('Additional context variables for the template'),
+        },
+        annotations: generativeAnnotations,
+      },
+      async (args) => this.generateWithTemplate(args)
+    );
+
+    // Register update_template_version tool
+    this.server.registerTool(
+      'update_template_version',
+      {
+        description: 'Update a prompt template with new content and create a new version.',
+        inputSchema: {
+          template_id: z.string().describe('The ID of the template to update'),
+          updates: z.object({
+            name: z.string().optional(),
+            description: z.string().optional(),
+            system_prompt: z.string().optional(),
+            user_prompt_template: z.string().optional(),
+            best_practices: z.array(z.string()).optional(),
+          }).describe('Fields to update'),
+          change_description: z.array(z.string()).describe('List of changes made in this version'),
+        },
+        annotations: modifyAnnotations,
+      },
+      async (args) => this.updateTemplateVersion(args)
+    );
+
+    // Register get_template_history tool
+    this.server.registerTool(
+      'get_template_history',
+      {
+        description: 'Get the version history and changelog for a prompt template.',
+        inputSchema: {
+          template_id: z.string().describe('The ID of the template'),
+        },
+        annotations: readOnlyAnnotations,
+      },
+      async (args) => this.getTemplateHistory(args)
+    );
   }
 
-  private async generatePlaybook(args: any) {
+  private async generatePlaybook(args: any): Promise<CallToolResult> {
     const params = GeneratePlaybookSchema.parse(args);
-    
+
     try {
       let playbook: string;
-      
+
       // Use template if specified
       if (params.template && this.playbookTemplates.has(params.template)) {
         playbook = this.playbookTemplates.get(params.template)!;
@@ -547,23 +503,22 @@ class AnsibleMCPServer {
         // Generate playbook using AI assistance
         playbook = await this.generateWithAI(params.prompt, params.context);
       }
-      
+
       // Save playbook to file
       const timestamp = Date.now();
       const filename = `playbook_${timestamp}.yml`;
       const filepath = path.join(this.workDir, filename);
-      
+
       await fs.writeFile(filepath, playbook);
-      
+
       // Validate the generated playbook
       const validation = await this.validateYAML(playbook);
-      
+
       return {
         content: [
           {
-            type: 'text',
+            type: 'text' as const,
             text: JSON.stringify({
-              success: true,
               playbook_path: filepath,
               playbook_content: playbook,
               validation: validation,
@@ -576,13 +531,11 @@ class AnsibleMCPServer {
       return {
         content: [
           {
-            type: 'text',
-            text: JSON.stringify({
-              success: false,
-              error: (error as Error).message
-            })
+            type: 'text' as const,
+            text: `Error generating playbook: ${(error as Error).message}`
           }
-        ]
+        ],
+        isError: true
       };
     }
   }
@@ -629,22 +582,22 @@ class AnsibleMCPServer {
     return playbook;
   }
 
-  private async validatePlaybook(args: any) {
+  private async validatePlaybook(args: any): Promise<CallToolResult> {
     const params = ValidatePlaybookSchema.parse(args);
-    
+
     try {
       // Read playbook
       const content = await fs.readFile(params.playbook_path, 'utf-8');
-      
+
       // Validate YAML syntax
       const yamlValidation = await this.validateYAML(content);
-      
+
       // Run ansible-playbook --syntax-check
       const syntaxCheck = await execAsync(
         `ansible-playbook --syntax-check ${params.playbook_path}`,
         { cwd: this.workDir }
       ).catch(err => ({ stdout: '', stderr: err.message }));
-      
+
       // Collect results
       const results = {
         yaml_valid: yamlValidation.valid,
@@ -658,29 +611,30 @@ class AnsibleMCPServer {
       if (params.strict) {
         results.warnings = this.checkBestPractices(content);
       }
-      
+
+      const isValid = results.yaml_valid && results.ansible_syntax_valid;
+
       return {
         content: [
           {
-            type: 'text',
+            type: 'text' as const,
             text: JSON.stringify({
-              success: results.yaml_valid && results.ansible_syntax_valid,
+              valid: isValid,
               validation_results: results
             }, null, 2)
           }
-        ]
+        ],
+        isError: !isValid
       };
     } catch (error) {
       return {
         content: [
           {
-            type: 'text',
-            text: JSON.stringify({
-              success: false,
-              error: (error as Error).message
-            })
+            type: 'text' as const,
+            text: `Error validating playbook: ${(error as Error).message}`
           }
-        ]
+        ],
+        isError: true
       };
     }
   }
@@ -720,38 +674,37 @@ class AnsibleMCPServer {
     return warnings;
   }
 
-  private async runPlaybook(args: any) {
+  private async runPlaybook(args: any): Promise<CallToolResult> {
     const params = RunPlaybookSchema.parse(args);
-    
+
     try {
       // Build ansible-playbook command
       let command = `ansible-playbook ${params.playbook_path}`;
       command += ` -i ${params.inventory}`;
-      
+
       if (params.check_mode) {
         command += ' --check';
       }
-      
+
       if (params.tags && params.tags.length > 0) {
         command += ` --tags "${params.tags.join(',')}"`;
       }
-      
+
       if (params.extra_vars) {
         command += ` -e '${JSON.stringify(params.extra_vars)}'`;
       }
-      
+
       // Execute playbook
-      const result = await execAsync(command, { 
+      const result = await execAsync(command, {
         cwd: this.workDir,
         maxBuffer: 1024 * 1024 * 10 // 10MB buffer
       });
-      
+
       return {
         content: [
           {
-            type: 'text',
+            type: 'text' as const,
             text: JSON.stringify({
-              success: true,
               output: result.stdout,
               errors: result.stderr,
               command: command
@@ -760,23 +713,24 @@ class AnsibleMCPServer {
         ]
       };
     } catch (error) {
+      const execError = error as any;
       return {
         content: [
           {
-            type: 'text',
+            type: 'text' as const,
             text: JSON.stringify({
-              success: false,
               error: (error as Error).message,
-              stderr: (error as any).stderr,
-              stdout: (error as any).stdout
-            })
+              stderr: execError.stderr,
+              stdout: execError.stdout
+            }, null, 2)
           }
-        ]
+        ],
+        isError: true
       };
     }
   }
 
-  private async refinePlaybook(args: any) {
+  private async refinePlaybook(args: any): Promise<CallToolResult> {
     const params = RefinePlaybookSchema.parse(args);
 
     try {
@@ -786,7 +740,7 @@ class AnsibleMCPServer {
       // Use AI provider for intelligent refinement if available
       if (this.aiProvider) {
         try {
-          console.log('Using AI provider for playbook refinement');
+          console.error('Using AI provider for playbook refinement');
           const refinementPrompt = `Refine this Ansible playbook based on the following feedback: ${params.feedback}
 
 ${params.validation_errors && params.validation_errors.length > 0 ? `\nValidation errors to fix:\n${params.validation_errors.join('\n')}` : ''}
@@ -805,7 +759,7 @@ Please provide an improved version of the playbook that addresses the feedback a
               role: 'user',
               content: refinementPrompt,
             },
-          ], { temperature: 0.3 }); // Lower temperature for more precise refinements
+          ], { temperature: 0.3 });
 
           const refinedPath = params.playbook_path.replace('.yml', '_refined.yml');
           await fs.writeFile(refinedPath, refinedContent.content);
@@ -813,9 +767,8 @@ Please provide an improved version of the playbook that addresses the feedback a
           return {
             content: [
               {
-                type: 'text',
+                type: 'text' as const,
                 text: JSON.stringify({
-                  success: true,
                   refined_playbook_path: refinedPath,
                   changes_applied: [
                     'AI-refined playbook based on feedback: ' + params.feedback,
@@ -828,33 +781,28 @@ Please provide an improved version of the playbook that addresses the feedback a
             ],
           };
         } catch (error) {
-          console.error('AI refinement failed, falling back to rule-based refinement:', error instanceof Error ? (error as Error).message : String(error));
-          // Fall through to rule-based refinement
+          console.error('AI refinement failed, falling back to rule-based refinement:', error instanceof Error ? error.message : String(error));
         }
       }
 
       // Fallback to rule-based refinement
-      console.log('Using rule-based refinement');
+      console.error('Using rule-based refinement');
 
       // Parse YAML
       const playbook = yaml.load(content) as any;
 
       // Apply refinements based on feedback
-      
       if (params.validation_errors) {
-        // Fix common errors
         params.validation_errors.forEach(error => {
           if (error.includes('indentation')) {
-            // Fix indentation issues
             content = this.fixIndentation(content);
           }
           if (error.includes('syntax')) {
-            // Fix common syntax issues
             content = this.fixCommonSyntax(content);
           }
         });
       }
-      
+
       // Apply feedback-based improvements
       if (params.feedback.toLowerCase().includes('add error handling')) {
         playbook[0].tasks = playbook[0].tasks.map((task: any) => ({
@@ -864,7 +812,7 @@ Please provide an improved version of the playbook that addresses the feedback a
           register: `${task.name.replace(/\s+/g, '_')}_result`
         }));
       }
-      
+
       if (params.feedback.toLowerCase().includes('make idempotent')) {
         playbook[0].tasks = playbook[0].tasks.map((task: any) => ({
           ...task,
@@ -872,18 +820,17 @@ Please provide an improved version of the playbook that addresses the feedback a
           check_mode: true
         }));
       }
-      
+
       // Save refined playbook
       const refinedContent = yaml.dump(playbook, { indent: 2 });
       const refinedPath = params.playbook_path.replace('.yml', '_refined.yml');
       await fs.writeFile(refinedPath, refinedContent);
-      
+
       return {
         content: [
           {
-            type: 'text',
+            type: 'text' as const,
             text: JSON.stringify({
-              success: true,
               refined_playbook_path: refinedPath,
               changes_applied: [
                 'Applied feedback: ' + params.feedback,
@@ -898,13 +845,11 @@ Please provide an improved version of the playbook that addresses the feedback a
       return {
         content: [
           {
-            type: 'text',
-            text: JSON.stringify({
-              success: false,
-              error: (error as Error).message
-            })
+            type: 'text' as const,
+            text: `Error refining playbook: ${(error as Error).message}`
           }
-        ]
+        ],
+        isError: true
       };
     }
   }
@@ -927,49 +872,49 @@ Please provide an improved version of the playbook that addresses the feedback a
       .replace(/\t/g, '  '); // Replace tabs with spaces
   }
 
-  private async lintPlaybook(args: any) {
+  private async lintPlaybook(args: any): Promise<CallToolResult> {
     const { playbook_path } = args;
-    
+
     try {
       // Run ansible-lint
       const result = await execAsync(
         `ansible-lint ${playbook_path}`,
         { cwd: this.workDir }
-      ).catch(err => ({ 
-        stdout: err.stdout || '', 
-        stderr: err.stderr || err.message 
+      ).catch(err => ({
+        stdout: err.stdout || '',
+        stderr: err.stderr || err.message
       }));
-      
+
+      const hasErrors = Boolean(result.stderr);
+
       return {
         content: [
           {
-            type: 'text',
+            type: 'text' as const,
             text: JSON.stringify({
-              success: !result.stderr,
               lint_output: result.stdout || 'No issues found',
-              errors: result.stderr
+              errors: result.stderr || null
             }, null, 2)
           }
-        ]
+        ],
+        isError: hasErrors
       };
     } catch (error) {
       return {
         content: [
           {
-            type: 'text',
-            text: JSON.stringify({
-              success: false,
-              error: (error as Error).message
-            })
+            type: 'text' as const,
+            text: `Error linting playbook: ${(error as Error).message}`
           }
-        ]
+        ],
+        isError: true
       };
     }
   }
 
   // Prompt Template tool implementations
 
-  private async listPromptTemplates(args: any) {
+  private async listPromptTemplates(args: any): Promise<CallToolResult> {
     const params = ListPromptTemplatesSchema.parse(args);
 
     try {
@@ -987,7 +932,6 @@ Please provide an improved version of the playbook that addresses the feedback a
 
       const templates = this.promptTemplateLibrary.listTemplates(searchOptions);
 
-      // Return summary of each template
       const templateSummaries = templates.map(t => ({
         id: t.id,
         name: t.name,
@@ -1002,9 +946,8 @@ Please provide an improved version of the playbook that addresses the feedback a
       return {
         content: [
           {
-            type: 'text',
+            type: 'text' as const,
             text: JSON.stringify({
-              success: true,
               count: templates.length,
               templates: templateSummaries
             }, null, 2)
@@ -1015,18 +958,16 @@ Please provide an improved version of the playbook that addresses the feedback a
       return {
         content: [
           {
-            type: 'text',
-            text: JSON.stringify({
-              success: false,
-              error: error.message
-            })
+            type: 'text' as const,
+            text: `Error listing templates: ${error.message}`
           }
-        ]
+        ],
+        isError: true
       };
     }
   }
 
-  private async getPromptTemplate(args: any) {
+  private async getPromptTemplate(args: any): Promise<CallToolResult> {
     const params = GetPromptTemplateSchema.parse(args);
 
     try {
@@ -1036,22 +977,19 @@ Please provide an improved version of the playbook that addresses the feedback a
         return {
           content: [
             {
-              type: 'text',
-              text: JSON.stringify({
-                success: false,
-                error: `Template not found: ${params.template_id}`
-              })
+              type: 'text' as const,
+              text: `Template not found: ${params.template_id}`
             }
-          ]
+          ],
+          isError: true
         };
       }
 
       return {
         content: [
           {
-            type: 'text',
+            type: 'text' as const,
             text: JSON.stringify({
-              success: true,
               template: template
             }, null, 2)
           }
@@ -1061,18 +999,16 @@ Please provide an improved version of the playbook that addresses the feedback a
       return {
         content: [
           {
-            type: 'text',
-            text: JSON.stringify({
-              success: false,
-              error: error.message
-            })
+            type: 'text' as const,
+            text: `Error getting template: ${error.message}`
           }
-        ]
+        ],
+        isError: true
       };
     }
   }
 
-  private async enrichPrompt(args: any) {
+  private async enrichPrompt(args: any): Promise<CallToolResult> {
     const params = EnrichPromptSchema.parse(args);
 
     try {
@@ -1085,9 +1021,8 @@ Please provide an improved version of the playbook that addresses the feedback a
       return {
         content: [
           {
-            type: 'text',
+            type: 'text' as const,
             text: JSON.stringify({
-              success: true,
               original_prompt: enrichedPrompt.original_prompt,
               enriched_prompt: enrichedPrompt.enriched_prompt,
               context_hints: enrichedPrompt.context_hints,
@@ -1104,18 +1039,16 @@ Please provide an improved version of the playbook that addresses the feedback a
       return {
         content: [
           {
-            type: 'text',
-            text: JSON.stringify({
-              success: false,
-              error: error.message
-            })
+            type: 'text' as const,
+            text: `Error enriching prompt: ${error.message}`
           }
-        ]
+        ],
+        isError: true
       };
     }
   }
 
-  private async generateWithTemplate(args: any) {
+  private async generateWithTemplate(args: any): Promise<CallToolResult> {
     const params = GenerateWithTemplateSchema.parse(args);
 
     try {
@@ -1145,9 +1078,8 @@ Please provide an improved version of the playbook that addresses the feedback a
       return {
         content: [
           {
-            type: 'text',
+            type: 'text' as const,
             text: JSON.stringify({
-              success: true,
               playbook_path: filepath,
               playbook_content: playbook,
               validation: validation,
@@ -1162,13 +1094,11 @@ Please provide an improved version of the playbook that addresses the feedback a
       return {
         content: [
           {
-            type: 'text',
-            text: JSON.stringify({
-              success: false,
-              error: error.message
-            })
+            type: 'text' as const,
+            text: `Error generating playbook with template: ${error.message}`
           }
-        ]
+        ],
+        isError: true
       };
     }
   }
@@ -1222,7 +1152,7 @@ ${template?.context_enrichment.best_practices.slice(0, 3).map(bp => `    # - ${b
     return playbook;
   }
 
-  private async updateTemplateVersion(args: any) {
+  private async updateTemplateVersion(args: any): Promise<CallToolResult> {
     const params = UpdateTemplateSchema.parse(args);
 
     try {
@@ -1235,9 +1165,8 @@ ${template?.context_enrichment.best_practices.slice(0, 3).map(bp => `    # - ${b
       return {
         content: [
           {
-            type: 'text',
+            type: 'text' as const,
             text: JSON.stringify({
-              success: true,
               template_id: updatedTemplate.id,
               new_version: updatedTemplate.version,
               updated_at: updatedTemplate.updated_at,
@@ -1250,18 +1179,16 @@ ${template?.context_enrichment.best_practices.slice(0, 3).map(bp => `    # - ${b
       return {
         content: [
           {
-            type: 'text',
-            text: JSON.stringify({
-              success: false,
-              error: error.message
-            })
+            type: 'text' as const,
+            text: `Error updating template: ${error.message}`
           }
-        ]
+        ],
+        isError: true
       };
     }
   }
 
-  private async getTemplateHistory(args: any) {
+  private async getTemplateHistory(args: any): Promise<CallToolResult> {
     const params = GetTemplateHistorySchema.parse(args);
 
     try {
@@ -1271,22 +1198,19 @@ ${template?.context_enrichment.best_practices.slice(0, 3).map(bp => `    # - ${b
         return {
           content: [
             {
-              type: 'text',
-              text: JSON.stringify({
-                success: false,
-                error: `No history found for template: ${params.template_id}`
-              })
+              type: 'text' as const,
+              text: `No history found for template: ${params.template_id}`
             }
-          ]
+          ],
+          isError: true
         };
       }
 
       return {
         content: [
           {
-            type: 'text',
+            type: 'text' as const,
             text: JSON.stringify({
-              success: true,
               template_id: params.template_id,
               history: history
             }, null, 2)
@@ -1297,13 +1221,11 @@ ${template?.context_enrichment.best_practices.slice(0, 3).map(bp => `    # - ${b
       return {
         content: [
           {
-            type: 'text',
-            text: JSON.stringify({
-              success: false,
-              error: error.message
-            })
+            type: 'text' as const,
+            text: `Error getting template history: ${error.message}`
           }
-        ]
+        ],
+        isError: true
       };
     }
   }
@@ -1311,7 +1233,7 @@ ${template?.context_enrichment.best_practices.slice(0, 3).map(bp => `    # - ${b
   async start() {
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
-    console.error('Ansible MCP Server started successfully');
+    console.error('Ansible MCP Server v2.0.0 started successfully (MCP SDK v1.22.0)');
   }
 }
 
