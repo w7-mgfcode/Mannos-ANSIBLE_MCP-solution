@@ -985,8 +985,11 @@ uvicorn src.main:app --host 0.0.0.0 --port 8000
 - `PYTHONUNBUFFERED`: `1` (for real-time logs)
 - `REDIS_HOST`: Redis hostname (default: `redis`)
 - `VAULT_ADDR`: Vault address (default: `http://vault:8200`)
-- `OPENAI_API_KEY`: OpenAI API key (if using)
-- `MODEL_NAME`: LLM model (default: `gpt-4`)
+- `AI_PROVIDER`: Provider type (`openai`, `anthropic`, `gemini`, `ollama`)
+- `AI_MODEL`: LLM model (default: `gpt-4.1`)
+- `OPENAI_API_KEY`: OpenAI API key
+- `ANTHROPIC_API_KEY`: Anthropic API key
+- `GEMINI_API_KEY`: Google Gemini API key
 
 ### Monitoring Access
 

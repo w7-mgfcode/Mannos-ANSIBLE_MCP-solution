@@ -284,10 +284,36 @@ curl -X POST http://localhost:3000/execute \
   }'
 ```
 
+## 🤖 AI Provider Support
+
+The server supports multiple AI providers for intelligent playbook generation:
+
+| Provider | Recommended Model | Features |
+|----------|-------------------|----------|
+| **OpenAI** | `gpt-4.1` | GPT-5, GPT-4.1 series, o4-mini reasoning |
+| **Anthropic** | `claude-sonnet-4-5-20250929` | Claude 4.5 Sonnet, Opus 4.1, Haiku 4.5 |
+| **Google Gemini** | `gemini-2.5-flash` | Gemini 3, Gemini 2.5 series |
+| **Ollama** | `llama3.2` | Llama 3.2/3.1, Qwen 2.5, local LLMs |
+
+### Configuration
+
+```bash
+# Set environment variables
+AI_PROVIDER=openai          # or anthropic, gemini, ollama
+AI_MODEL=gpt-4.1            # provider-specific model
+OPENAI_API_KEY=sk-your-key  # API key (not needed for Ollama)
+
+# Start with Docker
+docker compose up -d
+```
+
+See [AI_PROVIDERS.md](AI_PROVIDERS.md) for detailed provider setup and recommendations.
+
 ## 🔧 Technical Stack
 
-- **MCP Framework**: Model Context Protocol
+- **MCP Framework**: Model Context Protocol v1.22.0
 - **Languages**: TypeScript, Python
+- **AI Providers**: OpenAI, Anthropic, Google Gemini, Ollama
 - **Ansible**: 2.15+
 - **Validation**: ansible-lint, yamllint
 - **Testing**: Molecule, Testinfra
