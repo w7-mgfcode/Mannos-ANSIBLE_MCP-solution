@@ -70,12 +70,24 @@ class PlaybookGenerator:
     def _compile_patterns(self) -> Dict[str, re.Pattern]:
         """Compile regex patterns for prompt analysis"""
         return {
-            "kubernetes": re.compile(r"\b(k8s|kubernetes|kubectl|pod|deployment|service|ingress)\b", re.I),
-            "docker": re.compile(r"\b(docker|container|compose|dockerfile|registry)\b", re.I),
-            "database": re.compile(r"\b(mysql|postgres|mongodb|redis|database|db)\b", re.I),
-            "monitoring": re.compile(r"\b(prometheus|grafana|monitoring|metrics|alerts)\b", re.I),
-            "security": re.compile(r"\b(security|firewall|ssh|tls|certificate|vault)\b", re.I),
-            "network": re.compile(r"\b(network|routing|dns|load.?balanc|nginx|haproxy)\b", re.I),
+            "kubernetes": re.compile(
+                r"\b(k8s|kubernetes|kubectl|pod|deployment|service|ingress)\b", re.I
+            ),
+            "docker": re.compile(
+                r"\b(docker|container|compose|dockerfile|registry)\b", re.I
+            ),
+            "database": re.compile(
+                r"\b(mysql|postgres|mongodb|redis|database|db)\b", re.I
+            ),
+            "monitoring": re.compile(
+                r"\b(prometheus|grafana|monitoring|metrics|alerts)\b", re.I
+            ),
+            "security": re.compile(
+                r"\b(security|firewall|ssh|tls|certificate|vault)\b", re.I
+            ),
+            "network": re.compile(
+                r"\b(network|routing|dns|load.?balanc|nginx|haproxy)\b", re.I
+            ),
         }
 
     def analyze_prompt(self, prompt: str) -> PlaybookContext:
@@ -186,7 +198,9 @@ class PlaybookGenerator:
 
         return yaml.dump([playbook], default_flow_style=False, sort_keys=False)
 
-    def _enhance_with_requirements(self, playbook: str, context: PlaybookContext) -> str:
+    def _enhance_with_requirements(
+        self, playbook: str, context: PlaybookContext
+    ) -> str:
         """Enhance playbook based on requirements"""
         playbook_data = yaml.safe_load(playbook)
 
@@ -239,7 +253,11 @@ class PlaybookGenerator:
         security_tasks = [
             {
                 "name": "Configure firewall rules",
-                "firewalld": {"service": "https", "permanent": True, "state": "enabled"},
+                "firewalld": {
+                    "service": "https",
+                    "permanent": True,
+                    "state": "enabled",
+                },
                 "tags": ["security", "firewall"],
             },
             {
@@ -264,7 +282,9 @@ class PlaybookGenerator:
         if "handlers" not in playbook:
             playbook["handlers"] = []
 
-        playbook["handlers"].append({"name": "restart sshd", "service": {"name": "sshd", "state": "restarted"}})
+        playbook["handlers"].append(
+            {"name": "restart sshd", "service": {"name": "sshd", "state": "restarted"}}
+        )
 
     def _add_monitoring_tasks(self, playbook: Dict):
         """Add monitoring related tasks"""
@@ -275,12 +295,20 @@ class PlaybookGenerator:
         monitoring_tasks = [
             {
                 "name": "Install node exporter",
-                "unarchive": {"src": node_exporter_url, "dest": "/opt", "remote_src": True},
+                "unarchive": {
+                    "src": node_exporter_url,
+                    "dest": "/opt",
+                    "remote_src": True,
+                },
                 "tags": ["monitoring", "prometheus"],
             },
             {
                 "name": "Create systemd service for node exporter",
-                "systemd": {"name": "node_exporter", "state": "started", "enabled": True},
+                "systemd": {
+                    "name": "node_exporter",
+                    "state": "started",
+                    "enabled": True,
+                },
                 "tags": ["monitoring", "prometheus"],
             },
         ]
@@ -296,7 +324,12 @@ class PlaybookGenerator:
             },
             {
                 "name": "Setup automated backup cron job",
-                "cron": {"name": "Daily backup", "hour": "2", "minute": "0", "job": "/usr/local/bin/backup.sh"},
+                "cron": {
+                    "name": "Daily backup",
+                    "hour": "2",
+                    "minute": "0",
+                    "job": "/usr/local/bin/backup.sh",
+                },
                 "tags": ["backup", "cron"],
             },
         ]
@@ -817,7 +850,9 @@ class PlaybookValidator:
                         ]
                     ]
                     if not action_modules:
-                        warnings.append(f"Task '{task.get('name', idx + 1)}' has no action module")
+                        warnings.append(
+                            f"Task '{task.get('name', idx + 1)}' has no action module"
+                        )
 
         return warnings
 
