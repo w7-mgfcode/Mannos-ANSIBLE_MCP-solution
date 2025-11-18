@@ -76,7 +76,7 @@ python -m pytest
 ansible-lint playbooks/
 
 # Integration tests
-docker-compose -f docker-compose.test.yml up
+docker compose -f docker-compose.test.yml up
 ```
 
 ### Writing Tests

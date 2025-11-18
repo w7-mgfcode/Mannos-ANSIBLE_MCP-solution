@@ -1,0 +1,76 @@
+{
+  "name": "Ansible MCP Server Development",
+  "dockerComposeFile": "../docker-compose.yml",
+  "service": "ansible-mcp",
+  "workspaceFolder": "/workspace",
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "redhat.ansible",
+        "ms-azuretools.vscode-docker",
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "github.copilot"
+      ],
+      "settings": {
+        "typescript.tsdk": "node_modules/typescript/lib",
+        "python.defaultInterpreterPath": "/usr/local/bin/python",
+        "python.linting.enabled": true,
+        "python.linting.pylintEnabled": false,
+        "python.linting.flake8Enabled": true,
+        "python.formatting.provider": "black",
+        "editor.formatOnSave": true,
+        "editor.codeActionsOnSave": {
+          "source.organizeImports": true
+        }
+      }
+    }
+  },
+
+  "forwardPorts": [3000, 8000, 6379, 8200, 9090, 3001],
+  "portsAttributes": {
+    "3000": {
+      "label": "MCP Server",
+      "onAutoForward": "notify"
+    },
+    "8000": {
+      "label": "AI Generator",
+      "onAutoForward": "silent"
+    },
+    "6379": {
+      "label": "Redis",
+      "onAutoForward": "silent"
+    },
+    "8200": {
+      "label": "Vault",
+      "onAutoForward": "silent"
+    },
+    "9090": {
+      "label": "Prometheus",
+      "onAutoForward": "silent"
+    },
+    "3001": {
+      "label": "Grafana",
+      "onAutoForward": "notify"
+    }
+  },
+
+  "postCreateCommand": "npm install && pip install -r requirements.txt",
+  "postStartCommand": "docker compose up -d",
+
+  "remoteUser": "node",
+
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+    "ghcr.io/devcontainers/features/github-cli:1": {},
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "20"
+    },
+    "ghcr.io/devcontainers/features/python:1": {
+      "version": "3.10"
+    }
+  }
+}

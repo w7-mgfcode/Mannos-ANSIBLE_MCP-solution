@@ -163,11 +163,10 @@ class AnsibleMCPServer {
         state: started
         enabled: yes
 
-    - name: Install Docker Compose
-      get_url:
-        url: "https://github.com/docker/compose/releases/download/v{{ docker_compose_version }}/docker-compose-Linux-x86_64"
-        dest: /usr/local/bin/docker-compose
-        mode: '0755'
+    - name: Install Docker Compose Plugin
+      package:
+        name: docker-compose-plugin
+        state: present
 `);
 
     this.playbookTemplates.set('system_hardening', `

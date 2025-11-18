@@ -159,13 +159,13 @@ git clone https://github.com/shellsnake/ansible-mcp-server.git
 cd ansible-mcp-server
 
 # Start all services
-docker-compose up -d
+docker compose up -d
 
 # Check service health
-docker-compose ps
+docker compose ps
 
 # View logs
-docker-compose logs -f ansible-mcp
+docker compose logs -f ansible-mcp
 ```
 
 ### Basic Usage
