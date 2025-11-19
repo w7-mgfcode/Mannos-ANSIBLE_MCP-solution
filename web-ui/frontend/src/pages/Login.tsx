@@ -172,13 +172,15 @@ export default function Login() {
           </div>
         </div>
 
-        {/* Demo credentials */}
-        <div className="mt-4 p-4 bg-blue-50 rounded-lg">
-          <p className="text-xs text-blue-700 font-medium mb-1">Demo Credentials:</p>
-          <p className="text-xs text-blue-600">
-            Username: admin | Password: admin123
-          </p>
-        </div>
+        {/* Demo credentials - only shown in development */}
+        {import.meta.env.DEV && (
+          <div className="mt-4 p-4 bg-blue-50 rounded-lg">
+            <p className="text-xs text-blue-700 font-medium mb-1">Demo Credentials:</p>
+            <p className="text-xs text-blue-600">
+              Username: admin | Password: admin123
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );
