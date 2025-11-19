@@ -5,7 +5,7 @@ FROM node:20-alpine AS frontend-builder
 
 WORKDIR /app/frontend
 COPY frontend/package*.json ./
-RUN npm ci
+RUN npm install
 
 COPY frontend/ ./
 RUN npm run build
@@ -15,7 +15,7 @@ FROM node:20-alpine AS backend-builder
 
 WORKDIR /app/backend
 COPY backend/package*.json ./
-RUN npm ci
+RUN npm install
 
 COPY backend/ ./
 RUN npm run build
@@ -27,7 +27,7 @@ WORKDIR /app
 
 # Install production dependencies only
 COPY backend/package*.json ./
-RUN npm ci --omit=dev
+RUN npm install --omit=dev
 
 # Copy built backend
 COPY --from=backend-builder /app/backend/dist ./dist
