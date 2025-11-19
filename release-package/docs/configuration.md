@@ -265,14 +265,24 @@ global:
   evaluation_interval: 15s
 
 scrape_configs:
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
   - job_name: 'ansible-mcp'
     static_configs:
-      - targets: ['ansible-mcp:9090']
+      - targets: ['ansible-mcp:3000']
+    metrics_path: '/metrics'
 
+  # Redis metrics via exporter
+  # Note: Redis doesn't expose Prometheus metrics natively.
+  # A redis-exporter service is required to translate Redis INFO.
   - job_name: 'redis'
     static_configs:
-      - targets: ['redis:6379']
+      - targets: ['redis-exporter:9121']
 ```
+
+> **Note**: Redis requires an exporter service (`redis-exporter`) to expose metrics in Prometheus format. The exporter is included in the default docker-compose.yml and exposes metrics on port 9121.
 
 ### Grafana
 

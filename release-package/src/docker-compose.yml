@@ -97,6 +97,21 @@ services:
     networks:
       - ansible-network
 
+  # Redis Exporter for Prometheus metrics
+  # Required because Redis doesn't expose Prometheus metrics natively
+  redis-exporter:
+    image: oliver006/redis_exporter:latest
+    container_name: ansible-redis-exporter
+    restart: unless-stopped
+    ports:
+      - "9121:9121"
+    environment:
+      - REDIS_ADDR=redis://redis:6379
+    networks:
+      - ansible-network
+    depends_on:
+      - redis
+
   # HashiCorp Vault for secrets
   vault:
     image: hashicorp/vault:latest
