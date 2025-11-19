@@ -42,10 +42,7 @@ RUN apk add --no-cache --virtual .build-deps \
     python3-dev \
     musl-dev \
     linux-headers \
-    libffi-dev \
-    openssl-dev \
-    cargo \
-    rust
+    libffi-dev
 
 # Create virtual environment and install Python packages
 RUN python3 -m venv /opt/venv && \
@@ -53,8 +50,7 @@ RUN python3 -m venv /opt/venv && \
     kubernetes \
     openshift \
     pyvmomi \
-    boto3 \
-    azure-cli && \
+    boto3 && \
     apk del .build-deps
 
 # Add venv to PATH
