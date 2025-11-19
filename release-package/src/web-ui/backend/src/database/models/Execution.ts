@@ -25,7 +25,7 @@ export class Execution {
   @Column()
   playbookId!: string;
 
-  @ManyToOne(() => Playbook)
+  @ManyToOne(() => Playbook, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'playbookId' })
   playbook!: Playbook;
 
@@ -69,7 +69,7 @@ export class Execution {
   @Column({ nullable: true })
   executedById!: string;
 
-  @ManyToOne(() => User, { nullable: true })
+  @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'executedById' })
   executedBy!: User;
 

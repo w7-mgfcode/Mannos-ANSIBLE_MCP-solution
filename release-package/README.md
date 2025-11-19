@@ -68,7 +68,7 @@ curl -X POST http://localhost:3000/execute \
 
 ## Package Contents
 
-```
+```text
 release-package/
 ├── src/                    # Source files
 │   ├── server/             # TypeScript MCP server

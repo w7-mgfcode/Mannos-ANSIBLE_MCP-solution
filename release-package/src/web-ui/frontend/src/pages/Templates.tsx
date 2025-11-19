@@ -8,12 +8,24 @@ import { githubGist } from 'react-syntax-highlighter/dist/esm/styles/hljs';
 
 SyntaxHighlighter.registerLanguage('yaml', yaml);
 
+interface Template {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+}
+
+interface TemplateDetail extends Template {
+  content: string;
+  variables?: string[];
+}
+
 export default function Templates() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
-  const [selectedTemplate, setSelectedTemplate] = useState<any>(null);
+  const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
 
-  const { data: templates, isLoading } = useQuery({
+  const { data: templates, isLoading, error } = useQuery({
     queryKey: ['templates', searchTerm, selectedCategory],
     queryFn: () => templatesApi.list({
       search: searchTerm || undefined,
@@ -71,13 +83,21 @@ export default function Templates() {
             <div className="card p-8 text-center">
               <div className="animate-spin w-8 h-8 border-2 border-primary-500 border-t-transparent rounded-full mx-auto" />
             </div>
+          ) : error ? (
+            <div className="card p-8 text-center">
+              <FileTemplate className="w-12 h-12 text-red-300 mx-auto mb-4" />
+              <p className="text-red-500">Failed to load templates</p>
+              <p className="text-sm text-gray-500 mt-1">
+                {error instanceof Error ? error.message : 'Unknown error'}
+              </p>
+            </div>
           ) : templates?.templates?.length === 0 ? (
             <div className="card p-8 text-center">
               <FileTemplate className="w-12 h-12 text-gray-300 mx-auto mb-4" />
               <p className="text-gray-500">No templates found</p>
             </div>
           ) : (
-            templates?.templates?.map((template: any) => (
+            templates?.templates?.map((template: Template) => (
               <button
                 key={template.id}
                 onClick={() => setSelectedTemplate(template)}

@@ -14,17 +14,34 @@ import toast from 'react-hot-toast';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 
+interface Execution {
+  id: string;
+  status: 'pending' | 'running' | 'success' | 'failed' | 'cancelled';
+  playbook?: {
+    name: string;
+  };
+  inventory?: string;
+  checkMode: boolean;
+  startedAt: string;
+  durationSeconds?: number;
+}
+
 export default function Executions() {
   const [statusFilter, setStatusFilter] = useState('');
+  const [page, setPage] = useState(1);
+  const limit = 20;
   const queryClient = useQueryClient();
 
   const { data, isLoading } = useQuery({
-    queryKey: ['executions', statusFilter],
+    queryKey: ['executions', statusFilter, page],
     queryFn: () => executionsApi.list({
       status: statusFilter || undefined,
-      limit: 50,
+      limit,
+      offset: (page - 1) * limit,
     }).then(res => res.data),
   });
+
+  const totalPages = data?.total ? Math.ceil(data.total / limit) : 1;
 
   const stopMutation = useMutation({
     mutationFn: (id: string) => executionsApi.stop(id),
@@ -106,7 +123,7 @@ export default function Executions() {
                 </tr>
               </thead>
               <tbody>
-                {data?.executions?.map((execution: any) => (
+                {data?.executions?.map((execution: Execution) => (
                   <tr key={execution.id} className="border-b last:border-0 hover:bg-gray-50">
                     <td className="px-6 py-4">
                       <div className="flex items-center">
@@ -171,6 +188,34 @@ export default function Executions() {
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {/* Pagination */}
+        {data?.executions && data.executions.length > 0 && (
+          <div className="px-6 py-3 border-t bg-gray-50 flex items-center justify-between">
+            <div className="text-sm text-gray-500">
+              Showing {((page - 1) * limit) + 1} to {Math.min(page * limit, data.total || 0)} of {data.total || 0} executions
+            </div>
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page === 1}
+                className="px-3 py-1 text-sm border rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Previous
+              </button>
+              <span className="text-sm text-gray-600">
+                Page {page} of {totalPages}
+              </span>
+              <button
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                disabled={page >= totalPages}
+                className="px-3 py-1 text-sm border rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Next
+              </button>
+            </div>
           </div>
         )}
       </div>

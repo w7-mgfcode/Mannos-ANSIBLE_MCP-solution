@@ -131,7 +131,7 @@ sudo usermod -aG docker $USER
 ```
 
 **Expected output:**
-```
+```text
 docker-ce is already the newest version...
 ```
 
@@ -189,7 +189,7 @@ ls -la
 ```
 
 **Expected output:**
-```
+```text
 total 120
 drwxr-xr-x 12 user user  4096 Nov 18 12:00 .
 drwxr-xr-x  5 user user  4096 Nov 18 12:00 ..
@@ -239,7 +239,7 @@ echo "Environment configured. JWT_SECRET generated."
 ```
 
 **Expected output:**
-```
+```text
 Environment configured. JWT_SECRET generated.
 ```
 
@@ -275,7 +275,7 @@ echo "Directories created successfully"
 ```
 
 **Expected output:**
-```
+```text
 Directories created successfully
 ```
 
@@ -293,7 +293,7 @@ docker compose logs -f --tail=50
 ```
 
 **Expected output during startup:**
-```
+```text
 Creating ansible-redis ... done
 Creating ansible-vault ... done
 Creating ansible-postgres ... done
@@ -317,7 +317,7 @@ docker compose ps
 ```
 
 **Expected output:**
-```
+```text
 NAME                    STATUS              PORTS
 ansible-mcp-server      Up (healthy)        0.0.0.0:3000->3000/tcp
 ansible-redis           Up                  0.0.0.0:6379->6379/tcp
@@ -356,7 +356,7 @@ ls dist/
 ```
 
 **Expected output:**
-```
+```text
 server.js  prompt_templates.js  providers/
 ```
 
@@ -375,7 +375,7 @@ pip list | grep ansible
 ```
 
 **Expected output:**
-```
+```text
 ansible         2.15.x
 ansible-lint    6.17.x
 ```

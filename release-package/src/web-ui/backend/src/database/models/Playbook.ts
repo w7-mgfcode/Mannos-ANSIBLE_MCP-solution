@@ -54,7 +54,7 @@ export class Playbook {
   @Column({ nullable: true })
   createdById!: string;
 
-  @ManyToOne(() => User, { nullable: true })
+  @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'createdById' })
   createdBy!: User;
 

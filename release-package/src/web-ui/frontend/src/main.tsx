@@ -9,6 +9,8 @@ import './styles/globals.css';
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
+      // Default staleTime for most queries (templates, playbooks)
+      // For real-time data (executions), override with shorter staleTime in component
       staleTime: 1000 * 60 * 5, // 5 minutes
       retry: 1,
     },
