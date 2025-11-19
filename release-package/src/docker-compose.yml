@@ -204,7 +204,7 @@ services:
     volumes:
       - awx-projects:/var/lib/awx/projects
     environment:
-      SECRET_KEY: ${AWX_SECRET_KEY:-changeme}
+      SECRET_KEY: ${AWX_SECRET_KEY:?AWX_SECRET_KEY environment variable is required}
       DATABASE_NAME: ${POSTGRES_DB:-awx}
       DATABASE_USER: ${POSTGRES_USER:-awx}
       DATABASE_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD environment variable is required}
@@ -227,7 +227,7 @@ services:
     volumes:
       - awx-projects:/var/lib/awx/projects
     environment:
-      SECRET_KEY: ${AWX_SECRET_KEY:-changeme}
+      SECRET_KEY: ${AWX_SECRET_KEY:?AWX_SECRET_KEY environment variable is required}
       DATABASE_NAME: ${POSTGRES_DB:-awx}
       DATABASE_USER: ${POSTGRES_USER:-awx}
       DATABASE_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD environment variable is required}
