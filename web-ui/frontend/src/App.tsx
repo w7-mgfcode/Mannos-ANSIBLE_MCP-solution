@@ -27,25 +27,20 @@ export default function App() {
       <Route
         path="/*"
         element={
-          <Layout>
-            <Routes>
-              <Route path="/" element={<Dashboard />} />
-              <Route path="/playbooks" element={<Playbooks />} />
-              <Route path="/playbooks/:id" element={<Playbooks />} />
-              <Route path="/executions" element={<Executions />} />
-              <Route path="/executions/:id" element={<Executions />} />
-              <Route path="/templates" element={<Templates />} />
-              <Route path="/jobs" element={<Jobs />} />
-              <Route
-                path="/settings"
-                element={
-                  <ProtectedRoute>
-                    <Settings />
-                  </ProtectedRoute>
-                }
-              />
-            </Routes>
-          </Layout>
+          <ProtectedRoute>
+            <Layout>
+              <Routes>
+                <Route path="/" element={<Dashboard />} />
+                <Route path="/playbooks" element={<Playbooks />} />
+                <Route path="/playbooks/:id" element={<Playbooks />} />
+                <Route path="/executions" element={<Executions />} />
+                <Route path="/executions/:id" element={<Executions />} />
+                <Route path="/templates" element={<Templates />} />
+                <Route path="/jobs" element={<Jobs />} />
+                <Route path="/settings" element={<Settings />} />
+              </Routes>
+            </Layout>
+          </ProtectedRoute>
         }
       />
     </Routes>
