@@ -140,7 +140,7 @@ export default function Executions() {
                       {new Date(execution.startedAt).toLocaleString()}
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-600">
-                      {execution.durationSeconds
+                      {execution.durationSeconds != null
                         ? `${execution.durationSeconds.toFixed(1)}s`
                         : execution.status === 'running'
                         ? 'In progress...'

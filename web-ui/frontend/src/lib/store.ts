@@ -33,6 +33,7 @@ export const useAuthStore = create<AuthState>()(
       user: null,
       isAuthenticated: false,
       setAuth: (token, user) => {
+        // Let persist middleware handle storage - also store for API interceptor
         localStorage.setItem('auth_token', token);
         set({ token, user, isAuthenticated: true });
       },
@@ -44,6 +45,12 @@ export const useAuthStore = create<AuthState>()(
     {
       name: 'auth-storage',
       partialize: (state) => ({ token: state.token, user: state.user }),
+      // Derive isAuthenticated from token presence on rehydration
+      onRehydrateStorage: () => (state) => {
+        if (state) {
+          state.isAuthenticated = Boolean(state.token);
+        }
+      },
     }
   )
 );
