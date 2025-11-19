@@ -54,6 +54,9 @@ services:
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
       - GOOGLE_API_KEY=${GOOGLE_API_KEY:-}
       - AI_BASE_URL=${AI_BASE_URL:-}
+      # Redis Configuration
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
     networks:
       - ansible-network
     depends_on:
