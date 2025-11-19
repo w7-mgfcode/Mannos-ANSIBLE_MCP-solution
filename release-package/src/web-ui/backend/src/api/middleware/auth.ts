@@ -20,12 +20,15 @@ if (!JWT_SECRET) {
   throw new Error('JWT_SECRET environment variable is required. Generate one with: openssl rand -base64 32');
 }
 
+// Use const assertion after validation
+const SECRET: string = JWT_SECRET;
+
 export function generateToken(payload: JwtPayload): string {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRY });
+  return jwt.sign(payload, SECRET, { expiresIn: JWT_EXPIRY } as jwt.SignOptions);
 }
 
 export function verifyToken(token: string): JwtPayload {
-  return jwt.verify(token, JWT_SECRET) as JwtPayload;
+  return jwt.verify(token, SECRET) as JwtPayload;
 }
 
 export function authMiddleware(req: AuthenticatedRequest, res: Response, next: NextFunction): void {

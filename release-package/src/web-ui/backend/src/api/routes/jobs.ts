@@ -106,7 +106,7 @@ router.get('/:id', optionalAuth, async (req: AuthenticatedRequest, res: Response
 
     // Authorization check: if user is authenticated, verify ownership or admin role
     if (req.user) {
-      const isOwner = job.userId === req.user.id;
+      const isOwner = job.createdById === req.user.userId;
       const isAdmin = req.user.role === 'admin';
 
       if (!isOwner && !isAdmin) {

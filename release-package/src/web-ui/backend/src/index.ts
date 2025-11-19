@@ -201,7 +201,7 @@ async function startServer() {
 }
 
 // Export for external use
-export { app, getWebSocketManager };
+export { app };
 
 // Start if run directly
 startServer();
