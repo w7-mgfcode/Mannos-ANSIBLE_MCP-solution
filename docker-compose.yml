@@ -1,6 +1,31 @@
 version: '3.8'
 
 services:
+  # Web Management Interface
+  web-ui:
+    build:
+      context: ./web-ui
+      dockerfile: Dockerfile
+    container_name: ansible-web-ui
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+      - WEB_PORT=3001
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=awx
+      - DB_PASSWORD=awxpass
+      - DB_NAME=ansible_mcp
+      - JWT_SECRET=${JWT_SECRET:-ansible-mcp-jwt-secret-change-in-production}
+      - CORS_ORIGINS=http://localhost:3001,http://localhost:5173
+    networks:
+      - ansible-network
+    depends_on:
+      - postgres
+      - redis
+
   # Ansible MCP Server
   ansible-mcp:
     build:
@@ -135,7 +160,7 @@ services:
     container_name: ansible-grafana
     restart: unless-stopped
     ports:
-      - "3001:3000"
+      - "3002:3000"
     volumes:
       - grafana-data:/var/lib/grafana
       - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards
