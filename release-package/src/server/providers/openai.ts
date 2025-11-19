@@ -36,6 +36,25 @@ interface OpenAIResponse {
   };
 }
 
+// Models that should use the Responses API (/v1/responses)
+const RESPONSES_API_MODELS = [
+  'gpt-5',
+  'gpt-4.1',
+  'gpt-4.1-mini',
+  'gpt-4.1-nano',
+  'o4-mini',
+  'o3',
+];
+
+// Models that use the legacy Chat Completions API (/v1/chat/completions)
+const CHAT_COMPLETIONS_MODELS = [
+  'gpt-4o',
+  'gpt-4o-mini',
+  'gpt-4',
+  'gpt-4-turbo-preview',
+  'gpt-3.5-turbo',
+];
+
 export class OpenAIProvider extends AIProvider {
   private baseURL: string;
 
@@ -51,6 +70,13 @@ export class OpenAIProvider extends AIProvider {
       'OpenAI'
     );
     this.baseURL = this.config.baseURL!;
+  }
+
+  /**
+   * Check if a model should use the Responses API
+   */
+  private usesResponsesAPI(model: string): boolean {
+    return RESPONSES_API_MODELS.some(m => model.startsWith(m));
   }
 
   async generate(
@@ -69,6 +95,8 @@ export class OpenAIProvider extends AIProvider {
       max_tokens: options?.maxTokens ?? 2000,
       top_p: options?.topP ?? 1,
       stop: options?.stopSequences,
+      // Streaming is not currently supported - would require SSE response handling
+      // TODO: Implement streaming support with options?.stream when needed
       stream: false,
     };
 
@@ -81,7 +109,10 @@ export class OpenAIProvider extends AIProvider {
   }
 
   private async makeRequest(body: any): Promise<OpenAIResponse> {
-    const url = `${this.baseURL}/chat/completions`;
+    // Route to appropriate endpoint based on model
+    const model = body.model || this.config.model || '';
+    const endpoint = this.usesResponsesAPI(model) ? '/responses' : '/chat/completions';
+    const url = `${this.baseURL}${endpoint}`;
     const maxRetries = this.config.maxRetries || 3;
     const timeout = this.config.timeout || 60000;
 
