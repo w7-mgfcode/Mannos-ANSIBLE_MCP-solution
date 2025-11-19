@@ -192,8 +192,8 @@ docker compose ps --format "table {{.Name}}\t{{.Status}}\t{{.Ports}}" 2>/dev/nul
 echo ""
 echo "Access URLs:"
 echo "  - MCP Server:  http://localhost:3000"
-echo "  - Metrics:     http://localhost:9090/metrics"
-echo "  - Health:      http://localhost:9090/health"
+echo "  - Health:      http://localhost:3000/health"
+echo "  - Vault:       http://localhost:8200"
 
 if [ "${INSTALL_TYPE:-1}" -ge 2 ]; then
     echo "  - Grafana:     http://localhost:3002"
@@ -201,9 +201,9 @@ if [ "${INSTALL_TYPE:-1}" -ge 2 ]; then
 fi
 
 if [ "${INSTALL_TYPE:-1}" -eq 3 ]; then
+    echo "  - Web UI:      http://localhost:3001"
     echo "  - GitLab:      http://localhost:8080"
     echo "  - AWX:         http://localhost:8052"
-    echo "  - Vault:       http://localhost:8200"
 fi
 
 echo ""
