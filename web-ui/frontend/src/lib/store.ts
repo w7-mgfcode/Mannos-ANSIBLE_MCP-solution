@@ -16,6 +16,16 @@ interface AuthState {
   clearAuth: () => void;
 }
 
+// SECURITY NOTE: JWT tokens stored in localStorage are vulnerable to XSS attacks.
+// For production deployments with sensitive data, consider migrating to HttpOnly
+// cookies with Secure and SameSite=Strict attributes. This would require:
+// 1. Backend: Set JWT in HttpOnly cookie instead of response body
+// 2. Backend: Read token from cookie instead of Authorization header
+// 3. Frontend: Remove token from localStorage, rely on automatic cookie sending
+// 4. Configure CORS with credentials: true and specific origins
+//
+// Current implementation is suitable for internal tools but should be hardened
+// for public-facing applications. See OWASP guidelines for token storage.
 export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({

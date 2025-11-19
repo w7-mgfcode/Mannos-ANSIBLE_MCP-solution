@@ -48,10 +48,17 @@ const app = express();
 app.set('trust proxy', 1);
 
 // Security middleware
+// SECURITY NOTE: 'unsafe-inline' in scriptSrc/styleSrc weakens XSS protection.
+// For production hardening, consider:
+// 1. Using nonces or hashes for inline scripts (requires build tool config)
+// 2. Moving inline styles to external stylesheets
+// 3. Configuring Vite to generate CSP-compatible bundles
+// Current config is a balance between security and compatibility with React/Vite.
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
+      // TODO: Replace 'unsafe-inline' with nonces for better XSS protection
       scriptSrc: ["'self'", "'unsafe-inline'"],
       styleSrc: ["'self'", "'unsafe-inline'"],
       imgSrc: ["'self'", "data:", "https:"],
