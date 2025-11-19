@@ -43,15 +43,18 @@ const RESPONSES_API_MODELS = [
   'gpt-4.1-mini',
   'gpt-4.1-nano',
   'o4-mini',
+  'o3-pro',
+  'o3-mini',
   'o3',
+  'o1',
 ];
 
 // Models that use the legacy Chat Completions API (/v1/chat/completions)
 const CHAT_COMPLETIONS_MODELS = [
   'gpt-4o',
   'gpt-4o-mini',
+  'gpt-4-turbo',
   'gpt-4',
-  'gpt-4-turbo-preview',
   'gpt-3.5-turbo',
 ];
 
@@ -225,8 +228,16 @@ export class OpenAIProvider extends AIProvider {
 
   /**
    * List available OpenAI models
+   * Note: This list can be overridden via environment variable OPENAI_AVAILABLE_MODELS
+   * as a comma-separated string for easier updates without code changes.
    */
   static getAvailableModels(): string[] {
+    // Allow environment override for easier updates
+    const envModels = process.env.OPENAI_AVAILABLE_MODELS;
+    if (envModels) {
+      return envModels.split(',').map(m => m.trim()).filter(m => m.length > 0);
+    }
+
     return [
       // GPT-5 (Latest flagship)
       'gpt-5',
@@ -234,15 +245,18 @@ export class OpenAIProvider extends AIProvider {
       'gpt-4.1',
       'gpt-4.1-mini',
       'gpt-4.1-nano',
-      // Reasoning Models
+      // Reasoning Models (o-series)
       'o4-mini',
+      'o3-pro',
+      'o3-mini',
       'o3',
+      'o1',
       // GPT-4o Series
       'gpt-4o',
       'gpt-4o-mini',
       // Legacy GPT-4
+      'gpt-4-turbo',
       'gpt-4',
-      'gpt-4-turbo-preview',
       // Legacy GPT-3.5
       'gpt-3.5-turbo',
     ];
