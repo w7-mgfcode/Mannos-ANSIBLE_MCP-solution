@@ -16,9 +16,9 @@ services:
       - DB_HOST=postgres
       - DB_PORT=5432
       - DB_USER=${POSTGRES_USER:-awx}
-      - DB_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD environment variable is required}
+      - DB_PASSWORD=${POSTGRES_PASSWORD:-ansible_mcp_dev}
       - DB_NAME=${WEB_DB_NAME:-ansible_mcp}
-      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET environment variable is required}
+      - JWT_SECRET=${JWT_SECRET:-dev_jwt_secret_change_in_production}
       - CORS_ORIGINS=http://localhost:3001,http://localhost:5173
     networks:
       - ansible-network
@@ -188,7 +188,7 @@ services:
       - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards
       - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources
     environment:
-      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD environment variable is required}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-ansible_mcp}
       - GF_INSTALL_PLUGINS=redis-datasource,redis-app
     networks:
       - ansible-network
@@ -258,7 +258,7 @@ services:
       - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-ansible_mcp}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD environment variable is required}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ansible_mcp_dev}
       POSTGRES_DB: ${POSTGRES_DB:-awx}
     networks:
       - ansible-network
