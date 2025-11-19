@@ -245,18 +245,27 @@ OPENAI_API_KEY=sk-your-key         # API key for AI provider
 # Create .env file from template
 cp .env.example .env
 
-# Required credentials for production:
+# Generate secure JWT secret (REQUIRED - deployment will fail without it)
+export JWT_SECRET=$(openssl rand -base64 32)
+
+# Or add to .env file:
+echo "JWT_SECRET=$(openssl rand -base64 32)" >> .env
+
+# Other required credentials for production:
 POSTGRES_USER=your_db_user           # PostgreSQL username
 POSTGRES_PASSWORD=strong_password    # PostgreSQL password (min 16 chars)
 POSTGRES_DB=awx                      # PostgreSQL database name
 WEB_DB_NAME=ansible_mcp              # Web UI database name
 
-JWT_SECRET=your-jwt-secret-min-32    # JWT secret for web auth (min 32 chars)
 VAULT_ROOT_TOKEN=your-vault-token    # HashiCorp Vault root token
 AWX_SECRET_KEY=your-awx-secret       # AWX secret key
 GITLAB_ROOT_PASSWORD=gitlab-pass     # GitLab admin password
 GRAFANA_ADMIN_PASSWORD=grafana-pass  # Grafana admin password
 ```
+
+**JWT_SECRET is mandatory** - The web UI service will not start without it. Generate a secure secret using:
+- `openssl rand -base64 32` (recommended)
+- `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`
 
 **Security Best Practices**:
 - Use a password manager to generate strong, unique passwords
