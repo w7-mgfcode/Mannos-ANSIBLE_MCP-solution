@@ -153,7 +153,7 @@ services:
       GITLAB_OMNIBUS_CONFIG: |
         external_url 'http://gitlab.local'
         gitlab_rails['gitlab_shell_ssh_port'] = 8022
-        gitlab_rails['initial_root_password'] = '${GITLAB_ROOT_PASSWORD:-changeme}'
+        gitlab_rails['initial_root_password'] = '${GITLAB_ROOT_PASSWORD:?GITLAB_ROOT_PASSWORD environment variable is required}'
     networks:
       - ansible-network
 
@@ -185,7 +185,7 @@ services:
       - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards
       - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources
     environment:
-      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-changeme}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD environment variable is required}
       - GF_INSTALL_PLUGINS=redis-datasource,redis-app
     networks:
       - ansible-network
