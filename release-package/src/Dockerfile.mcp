@@ -30,16 +30,23 @@ RUN apk add --no-cache \
     ansible-lint \
     python3 \
     py3-pip \
+    py3-virtualenv \
     git \
     openssh-client \
     curl \
-    jq \
-    && pip3 install --no-cache-dir \
+    jq
+
+# Create virtual environment and install Python packages
+RUN python3 -m venv /opt/venv && \
+    /opt/venv/bin/pip install --no-cache-dir \
     kubernetes \
     openshift \
     pyvmomi \
     boto3 \
     azure-cli
+
+# Add venv to PATH
+ENV PATH="/opt/venv/bin:$PATH"
 
 # Create non-root user for security
 RUN addgroup -g 1001 -S ansible && \
