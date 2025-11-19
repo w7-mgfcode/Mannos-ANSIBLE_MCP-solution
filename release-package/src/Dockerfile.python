@@ -56,4 +56,4 @@ except Exception: \
     exit(1)"
 
 # Run the FastAPI application
-CMD ["uvicorn", "src.api:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+CMD ["uvicorn", "src.api:app", "--host", "0.0.0.0", "--port", "8000"]
