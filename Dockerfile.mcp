@@ -34,7 +34,14 @@ RUN apk add --no-cache \
     git \
     openssh-client \
     curl \
-    jq
+    jq \
+    # Build dependencies for Python packages
+    gcc \
+    python3-dev \
+    musl-dev \
+    linux-headers \
+    libffi-dev \
+    openssl-dev
 
 # Create virtual environment and install Python packages
 RUN python3 -m venv /opt/venv && \
@@ -43,7 +50,9 @@ RUN python3 -m venv /opt/venv && \
     openshift \
     pyvmomi \
     boto3 \
-    azure-cli
+    azure-cli && \
+    # Clean up build dependencies to reduce image size
+    apk del gcc python3-dev musl-dev linux-headers libffi-dev openssl-dev
 
 # Add venv to PATH
 ENV PATH="/opt/venv/bin:$PATH"
