@@ -112,26 +112,41 @@ export class GeminiProvider extends AIProvider {
   private convertMessages(messages: AIMessage[]): GeminiContent[] {
     const contents: GeminiContent[] = [];
 
-    // Merge system message into first user message if present
+    // Separate system message from other messages
     const systemMessage = messages.find((m) => m.role === 'system');
     const otherMessages = messages.filter((m) => m.role !== 'system');
 
-    if (systemMessage && otherMessages.length > 0 && otherMessages[0] && otherMessages[0].role === 'user') {
-      // Prepend system message to first user message
-      contents.push({
-        role: 'user',
-        parts: [{ text: `${systemMessage.content}\n\n${otherMessages[0].content}` }],
-      });
+    // Handle system message - ensure it's never dropped
+    if (systemMessage) {
+      if (otherMessages.length > 0 && otherMessages[0] && otherMessages[0].role === 'user') {
+        // Prepend system message to first user message
+        contents.push({
+          role: 'user',
+          parts: [{ text: `${systemMessage.content}\n\n${otherMessages[0].content}` }],
+        });
 
-      // Add remaining messages
-      for (let i = 1; i < otherMessages.length; i++) {
-        const msg = otherMessages[i];
-        if (msg) {
+        // Add remaining messages
+        for (let i = 1; i < otherMessages.length; i++) {
+          const msg = otherMessages[i];
+          if (msg) {
+            contents.push(this.convertMessage(msg));
+          }
+        }
+      } else {
+        // First non-system message is not a user message (or no other messages)
+        // Create a synthetic user turn containing the system message
+        contents.push({
+          role: 'user',
+          parts: [{ text: systemMessage.content }],
+        });
+
+        // Add all other messages
+        for (const msg of otherMessages) {
           contents.push(this.convertMessage(msg));
         }
       }
     } else {
-      // No system message or different structure
+      // No system message - just convert all messages
       for (const msg of otherMessages) {
         contents.push(this.convertMessage(msg));
       }
