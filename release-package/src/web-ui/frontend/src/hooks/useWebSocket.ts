@@ -11,6 +11,9 @@ export function useExecutionStream(executionId: string) {
 
   useEffect(() => {
     if (executionId) {
+      // Reset state when switching to a new execution
+      setOutput('');
+      setStatus('');
       subscribe(`execution:${executionId}`);
       return () => unsubscribe(`execution:${executionId}`);
     }

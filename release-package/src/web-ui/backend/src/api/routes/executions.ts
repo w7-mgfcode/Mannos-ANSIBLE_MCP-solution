@@ -88,8 +88,8 @@ router.get('/stats/summary', optionalAuth, async (req: AuthenticatedRequest, res
       running,
       success,
       failed,
-      successRate: total > 0 ? (success / total * 100).toFixed(2) : 0,
-      averageDuration: avgDuration?.avg ? parseFloat(avgDuration.avg).toFixed(2) : 0
+      successRate: total > 0 ? parseFloat((success / total * 100).toFixed(2)) : 0,
+      averageDuration: avgDuration?.avg ? parseFloat(parseFloat(avgDuration.avg).toFixed(2)) : 0
     });
   } catch (error) {
     next(error);

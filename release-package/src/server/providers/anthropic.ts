@@ -217,18 +217,17 @@ export class AnthropicProvider extends AIProvider {
     }
 
     return [
-      // Claude 4.5 Series (Latest)
-      'claude-sonnet-4-5-20250929',
-      'claude-haiku-4-5-20251015',
-      // Claude 4 Series
+      // Claude 4 Series (Latest)
       'claude-opus-4-1-20250805',
-      'claude-sonnet-4-20250522',
-      'claude-opus-4-20250522',
-      // Claude 3.5 Series (Legacy but available)
-      'claude-3-5-sonnet-20241022',
+      'claude-opus-4-20250514',
+      'claude-sonnet-4-20250514',
+      // Claude 3.7 Series
+      'claude-3-7-sonnet-20250219',
+      // Claude 3.5 Series
       'claude-3-5-haiku-20241022',
+      // Claude 3 Series (Legacy)
+      'claude-3-haiku-20240307',
       // Note: Claude 3 Opus deprecated June 2025, retiring Jan 2026
-      // Note: Claude 3 Sonnet and Claude 2.1 retired July 2025
     ];
   }
 }
