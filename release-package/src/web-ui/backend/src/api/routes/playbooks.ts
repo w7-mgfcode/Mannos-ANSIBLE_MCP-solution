@@ -158,9 +158,10 @@ router.put('/:id', authMiddleware, userOrAdmin, async (req: AuthenticatedRequest
 
     const { name, description, content, tags } = req.body;
 
-    if (name) playbook.name = name;
+    // Use explicit undefined checks to allow setting fields to falsy values (empty string, empty array)
+    if (name !== undefined) playbook.name = name;
     if (description !== undefined) playbook.description = description;
-    if (tags) playbook.tags = tags;
+    if (tags !== undefined) playbook.tags = tags;
 
     if (content && content !== playbook.content) {
       playbook.content = content;

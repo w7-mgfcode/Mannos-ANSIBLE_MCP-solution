@@ -227,7 +227,8 @@ templates.set('postgresql_setup', {
   vars:
     db_name: "{{ db_name | default('myapp') }}"
     db_user: "{{ db_user | default('appuser') }}"
-    db_password: "{{ db_password | default('changeme') }}"
+    # SECURITY: No default password - must be provided via extra vars
+    db_password: "{{ db_password }}"
 
   tasks:
     - name: Install PostgreSQL
