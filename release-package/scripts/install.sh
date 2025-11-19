@@ -126,16 +126,20 @@ SRC_DIR="$RELEASE_DIR/src"
 
 # Use docker-compose.yml from src directory
 COMPOSE_FILE="$SRC_DIR/docker-compose.yml"
+ENV_FILE="$RELEASE_DIR/.env"
 
 if [ ! -f "$COMPOSE_FILE" ]; then
     echo -e "${CROSS} ${RED}docker-compose.yml not found at $COMPOSE_FILE${NC}"
     exit 1
 fi
 
+# Docker compose command with env file
+DOCKER_COMPOSE="docker compose -f $COMPOSE_FILE --env-file $ENV_FILE"
+
 # ===== Pull Docker Images =====
 echo ""
 echo -e "${INFO} Pulling Docker images (this may take a few minutes)..."
-docker compose -f "$COMPOSE_FILE" pull
+$DOCKER_COMPOSE pull
 
 echo -e "${CHECK} Images pulled successfully"
 
@@ -155,19 +159,19 @@ read -p "Enter choice [1-3, default: 1]: " INSTALL_TYPE
 case ${INSTALL_TYPE:-1} in
     1)
         echo -e "${INFO} Starting minimal services..."
-        docker compose -f "$COMPOSE_FILE" up -d ansible-mcp redis vault postgres
+        $DOCKER_COMPOSE up -d ansible-mcp redis vault postgres
         ;;
     2)
         echo -e "${INFO} Starting standard services..."
-        docker compose -f "$COMPOSE_FILE" up -d ansible-mcp redis vault postgres prometheus grafana
+        $DOCKER_COMPOSE up -d ansible-mcp redis vault postgres prometheus grafana
         ;;
     3)
         echo -e "${INFO} Starting full stack..."
-        docker compose -f "$COMPOSE_FILE" up -d
+        $DOCKER_COMPOSE up -d
         ;;
     *)
         echo -e "${CROSS} Invalid choice, starting minimal..."
-        docker compose -f "$COMPOSE_FILE" up -d ansible-mcp redis vault postgres
+        $DOCKER_COMPOSE up -d ansible-mcp redis vault postgres
         ;;
 esac
 
@@ -188,7 +192,7 @@ else
 fi
 
 # Check Redis
-if docker compose -f "$COMPOSE_FILE" exec -T redis redis-cli ping 2>/dev/null | grep -q PONG; then
+if $DOCKER_COMPOSE exec -T redis redis-cli ping 2>/dev/null | grep -q PONG; then
     echo -e "${CHECK} Redis is running"
 else
     echo -e "${WARN} Redis may still be starting..."
@@ -201,7 +205,7 @@ echo -e "${GREEN}  Installation Complete!${NC}"
 echo -e "${GREEN}========================================${NC}"
 echo ""
 echo "Services:"
-docker compose -f "$COMPOSE_FILE" ps --format "table {{.Name}}\t{{.Status}}\t{{.Ports}}" 2>/dev/null || docker compose -f "$COMPOSE_FILE" ps
+$DOCKER_COMPOSE ps --format "table {{.Name}}\t{{.Status}}\t{{.Ports}}" 2>/dev/null || $DOCKER_COMPOSE ps
 echo ""
 echo "Access URLs:"
 echo "  - MCP Server:  http://localhost:3000"
