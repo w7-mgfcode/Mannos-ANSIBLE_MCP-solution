@@ -136,44 +136,66 @@ fi
 # Docker compose command with env file
 DOCKER_COMPOSE="docker compose -f $COMPOSE_FILE --env-file $ENV_FILE"
 
+# ===== Select Installation Type =====
+echo ""
+echo "Select installation type:"
+echo "  1) Minimal (MCP + AI + Redis + Vault + Postgres) - ~1GB RAM"
+echo "  2) Standard (+ Web UI + Prometheus + Grafana) - ~2GB RAM"
+echo "  3) Full (+ GitLab + AWX) - ~8GB RAM"
+echo ""
+read -p "Enter choice [1-3, default: 2]: " INSTALL_TYPE
+INSTALL_TYPE=${INSTALL_TYPE:-2}
+
+# Define services based on installation type
+case ${INSTALL_TYPE} in
+    1)
+        BUILD_SERVICES="ansible-mcp ai-generator"
+        RUN_SERVICES="ansible-mcp ai-generator redis vault postgres"
+        ;;
+    2)
+        BUILD_SERVICES="ansible-mcp ai-generator web-ui"
+        RUN_SERVICES="ansible-mcp ai-generator web-ui redis vault postgres prometheus grafana redis-exporter"
+        ;;
+    3)
+        BUILD_SERVICES="ansible-mcp ai-generator web-ui"
+        RUN_SERVICES=""  # Empty means all services
+        ;;
+    *)
+        echo -e "${CROSS} Invalid choice, using standard..."
+        BUILD_SERVICES="ansible-mcp ai-generator web-ui"
+        RUN_SERVICES="ansible-mcp ai-generator web-ui redis vault postgres prometheus grafana redis-exporter"
+        INSTALL_TYPE=2
+        ;;
+esac
+
 # ===== Pull Docker Images =====
 echo ""
-echo -e "${INFO} Pulling Docker images (this may take a few minutes)..."
-$DOCKER_COMPOSE pull
+echo -e "${INFO} Pulling base Docker images..."
+$DOCKER_COMPOSE pull redis vault postgres prometheus grafana 2>/dev/null || true
 
-echo -e "${CHECK} Images pulled successfully"
+echo -e "${CHECK} Base images pulled"
+
+# ===== Build Custom Images (Parallel) =====
+echo ""
+echo -e "${INFO} Building custom images (parallel build)..."
+echo -e "${WARN} First build may take 5-10 minutes..."
+
+# Build images in parallel
+$DOCKER_COMPOSE build --parallel $BUILD_SERVICES
+
+echo -e "${CHECK} Images built successfully"
 
 # ===== Start Services =====
 echo ""
 echo -e "${INFO} Starting services..."
 
-# Ask which configuration to use
-echo ""
-echo "Select installation type:"
-echo "  1) Minimal (MCP + Redis + Vault + Postgres) - ~1GB RAM"
-echo "  2) Standard (+ Prometheus + Grafana) - ~2GB RAM"
-echo "  3) Full (+ GitLab + AWX) - ~8GB RAM"
-echo ""
-read -p "Enter choice [1-3, default: 1]: " INSTALL_TYPE
-
-case ${INSTALL_TYPE:-1} in
-    1)
-        echo -e "${INFO} Starting minimal services..."
-        $DOCKER_COMPOSE up -d ansible-mcp redis vault postgres
-        ;;
-    2)
-        echo -e "${INFO} Starting standard services..."
-        $DOCKER_COMPOSE up -d ansible-mcp redis vault postgres prometheus grafana
-        ;;
-    3)
-        echo -e "${INFO} Starting full stack..."
-        $DOCKER_COMPOSE up -d
-        ;;
-    *)
-        echo -e "${CROSS} Invalid choice, starting minimal..."
-        $DOCKER_COMPOSE up -d ansible-mcp redis vault postgres
-        ;;
-esac
+if [ -z "$RUN_SERVICES" ]; then
+    echo -e "${INFO} Starting full stack..."
+    $DOCKER_COMPOSE up -d
+else
+    echo -e "${INFO} Starting selected services..."
+    $DOCKER_COMPOSE up -d $RUN_SERVICES
+fi
 
 # ===== Wait for Services =====
 echo ""
@@ -212,13 +234,13 @@ echo "  - MCP Server:  http://localhost:3000"
 echo "  - Health:      http://localhost:3000/health"
 echo "  - Vault:       http://localhost:8200"
 
-if [ "${INSTALL_TYPE:-1}" -ge 2 ]; then
+if [ "${INSTALL_TYPE}" -ge 2 ]; then
+    echo "  - Web UI:      http://localhost:3001"
     echo "  - Grafana:     http://localhost:3002"
     echo "  - Prometheus:  http://localhost:9090"
 fi
 
-if [ "${INSTALL_TYPE:-1}" -eq 3 ]; then
-    echo "  - Web UI:      http://localhost:3001"
+if [ "${INSTALL_TYPE}" -eq 3 ]; then
     echo "  - GitLab:      http://localhost:8080"
     echo "  - AWX:         http://localhost:8052"
 fi
