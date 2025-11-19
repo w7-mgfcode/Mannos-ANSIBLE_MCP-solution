@@ -60,6 +60,26 @@ router.get('/', optionalAuth, async (req: AuthenticatedRequest, res: Response, n
   }
 });
 
+// GET /api/jobs/stats/queue - Get queue statistics
+// NOTE: This route must be defined before /:id to avoid "stats" being treated as an ID
+router.get('/stats/queue', optionalAuth, async (req: AuthenticatedRequest, res: Response, next) => {
+  try {
+    const queued = await jobRepository().count({ where: { status: JobStatus.QUEUED } });
+    const processing = await jobRepository().count({ where: { status: JobStatus.PROCESSING } });
+    const completed = await jobRepository().count({ where: { status: JobStatus.COMPLETED } });
+    const failed = await jobRepository().count({ where: { status: JobStatus.FAILED } });
+
+    res.json({
+      queued,
+      processing,
+      completed,
+      failed
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // GET /api/jobs/:id - Get job by ID
 router.get('/:id', optionalAuth, async (req: AuthenticatedRequest, res: Response, next) => {
   try {
@@ -100,25 +120,6 @@ router.post('/:id/cancel', authMiddleware, userOrAdmin, async (req: Authenticate
       success: true,
       message: 'Job cancelled',
       job
-    });
-  } catch (error) {
-    next(error);
-  }
-});
-
-// GET /api/jobs/stats/queue - Get queue statistics
-router.get('/stats/queue', optionalAuth, async (req: AuthenticatedRequest, res: Response, next) => {
-  try {
-    const queued = await jobRepository().count({ where: { status: JobStatus.QUEUED } });
-    const processing = await jobRepository().count({ where: { status: JobStatus.PROCESSING } });
-    const completed = await jobRepository().count({ where: { status: JobStatus.COMPLETED } });
-    const failed = await jobRepository().count({ where: { status: JobStatus.FAILED } });
-
-    res.json({
-      queued,
-      processing,
-      completed,
-      failed
     });
   } catch (error) {
     next(error);

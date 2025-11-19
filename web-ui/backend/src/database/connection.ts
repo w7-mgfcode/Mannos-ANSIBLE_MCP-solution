@@ -1,9 +1,14 @@
 import 'reflect-metadata';
 import { DataSource } from 'typeorm';
+import * as path from 'path';
+import { fileURLToPath } from 'url';
 import { User } from './models/User.js';
 import { Playbook } from './models/Playbook.js';
 import { Execution } from './models/Execution.js';
 import { Job } from './models/Job.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const isDevelopment = process.env.NODE_ENV === 'development';
 const isProduction = process.env.NODE_ENV === 'production';
@@ -36,7 +41,7 @@ export const AppDataSource = new DataSource({
   synchronize: isDevelopment,
   logging: isDevelopment,
   entities: [User, Playbook, Execution, Job],
-  migrations: ['./migrations/*.js'],
+  migrations: [path.join(__dirname, '../migrations/*.js')],
   subscribers: [],
 });
 

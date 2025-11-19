@@ -125,7 +125,8 @@ app.get('/api/stats', (req, res) => {
 });
 
 // Serve static files in production
-const frontendPath = path.join(__dirname, '../../frontend/dist');
+// Path matches Dockerfile: /app/dist/index.js -> /app/frontend/dist
+const frontendPath = path.join(__dirname, '../frontend/dist');
 app.use(express.static(frontendPath));
 
 // SPA fallback

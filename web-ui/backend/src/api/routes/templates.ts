@@ -292,6 +292,13 @@ router.get('/', optionalAuth, async (req: AuthenticatedRequest, res: Response) =
   });
 });
 
+// GET /api/templates/meta/categories - Get template categories
+// NOTE: This route must be defined before /:id to avoid "meta" being treated as an ID
+router.get('/meta/categories', optionalAuth, async (req: AuthenticatedRequest, res: Response) => {
+  const categories = new Set(Array.from(templates.values()).map(t => t.category));
+  res.json({ categories: Array.from(categories) });
+});
+
 // GET /api/templates/:id - Get template by ID
 router.get('/:id', optionalAuth, async (req: AuthenticatedRequest, res: Response, next) => {
   try {
@@ -305,12 +312,6 @@ router.get('/:id', optionalAuth, async (req: AuthenticatedRequest, res: Response
   } catch (error) {
     next(error);
   }
-});
-
-// GET /api/templates/categories - Get template categories
-router.get('/meta/categories', optionalAuth, async (req: AuthenticatedRequest, res: Response) => {
-  const categories = new Set(Array.from(templates.values()).map(t => t.category));
-  res.json({ categories: Array.from(categories) });
 });
 
 // POST /api/templates/:id/enrich - Enrich prompt with template

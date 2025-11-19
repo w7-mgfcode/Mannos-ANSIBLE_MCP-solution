@@ -32,8 +32,8 @@ RUN npm ci --omit=dev
 # Copy built backend
 COPY --from=backend-builder /app/backend/dist ./dist
 
-# Copy built frontend
-COPY --from=frontend-builder /app/frontend/dist ./public
+# Copy built frontend (must match path in src/index.ts)
+COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
 
 # Create non-root user
 RUN addgroup -g 1001 -S nodejs && \

@@ -33,12 +33,10 @@ export const useAuthStore = create<AuthState>()(
       user: null,
       isAuthenticated: false,
       setAuth: (token, user) => {
-        // Let persist middleware handle storage - also store for API interceptor
-        localStorage.setItem('auth_token', token);
+        // persist middleware handles localStorage automatically
         set({ token, user, isAuthenticated: true });
       },
       clearAuth: () => {
-        localStorage.removeItem('auth_token');
         set({ token: null, user: null, isAuthenticated: false });
       },
     }),

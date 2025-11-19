@@ -63,6 +63,34 @@ router.get('/', optionalAuth, async (req: AuthenticatedRequest, res: Response, n
   }
 });
 
+// GET /api/executions/stats/summary - Get execution statistics
+// NOTE: This route must be defined before /:id to avoid "stats" being treated as an ID
+router.get('/stats/summary', optionalAuth, async (req: AuthenticatedRequest, res: Response, next) => {
+  try {
+    const total = await executionRepository().count();
+    const running = await executionRepository().count({ where: { status: ExecutionStatus.RUNNING } });
+    const success = await executionRepository().count({ where: { status: ExecutionStatus.SUCCESS } });
+    const failed = await executionRepository().count({ where: { status: ExecutionStatus.FAILED } });
+
+    const avgDuration = await executionRepository()
+      .createQueryBuilder('execution')
+      .select('AVG(execution.durationSeconds)', 'avg')
+      .where('execution.durationSeconds IS NOT NULL')
+      .getRawOne();
+
+    res.json({
+      total,
+      running,
+      success,
+      failed,
+      successRate: total > 0 ? (success / total * 100).toFixed(2) : 0,
+      averageDuration: avgDuration?.avg ? parseFloat(avgDuration.avg).toFixed(2) : 0
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // GET /api/executions/:id - Get execution by ID
 router.get('/:id', optionalAuth, async (req: AuthenticatedRequest, res: Response, next) => {
   try {
@@ -150,33 +178,6 @@ router.post('/:id/stop', authMiddleware, userOrAdmin, async (req: AuthenticatedR
       success: true,
       message: 'Execution stopped',
       execution
-    });
-  } catch (error) {
-    next(error);
-  }
-});
-
-// GET /api/executions/stats/summary - Get execution statistics
-router.get('/stats/summary', optionalAuth, async (req: AuthenticatedRequest, res: Response, next) => {
-  try {
-    const total = await executionRepository().count();
-    const running = await executionRepository().count({ where: { status: ExecutionStatus.RUNNING } });
-    const success = await executionRepository().count({ where: { status: ExecutionStatus.SUCCESS } });
-    const failed = await executionRepository().count({ where: { status: ExecutionStatus.FAILED } });
-
-    const avgDuration = await executionRepository()
-      .createQueryBuilder('execution')
-      .select('AVG(execution.durationSeconds)', 'avg')
-      .where('execution.durationSeconds IS NOT NULL')
-      .getRawOne();
-
-    res.json({
-      total,
-      running,
-      success,
-      failed,
-      successRate: total > 0 ? (success / total * 100).toFixed(2) : 0,
-      averageDuration: avgDuration?.avg ? parseFloat(avgDuration.avg).toFixed(2) : 0
     });
   } catch (error) {
     next(error);

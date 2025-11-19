@@ -111,6 +111,13 @@ router.post('/', authMiddleware, userOrAdmin, async (req: AuthenticatedRequest, 
     const filename = `playbook_${Date.now()}_${uuidv4().slice(0, 8)}.yml`;
     const filePath = path.join(PLAYBOOK_DIR, filename);
 
+    // Validate the resolved path is within PLAYBOOK_DIR (prevent path traversal)
+    const resolvedPlaybookDir = path.resolve(PLAYBOOK_DIR);
+    const resolvedFilePath = path.resolve(filePath);
+    if (!resolvedFilePath.startsWith(resolvedPlaybookDir + path.sep)) {
+      throw new AppError('Invalid file path', 400);
+    }
+
     // Write to file
     await fs.writeFile(filePath, content, 'utf-8');
 
@@ -314,7 +321,7 @@ router.post('/:id/refine', authMiddleware, userOrAdmin, async (req: Authenticate
       throw new AppError('Playbook not found', 404);
     }
 
-    const { feedback, validationErrors } = req.body;
+    const { feedback } = req.body;
 
     if (!feedback) {
       throw new AppError('Feedback is required', 400);
