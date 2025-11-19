@@ -50,14 +50,8 @@ const RESPONSES_API_MODELS = [
 ];
 
 // Models that use the legacy Chat Completions API (/v1/chat/completions)
-// Kept for documentation purposes - selection is done by exclusion from RESPONSES_API_MODELS
-const _CHAT_COMPLETIONS_MODELS = [
-  'gpt-4o',
-  'gpt-4o-mini',
-  'gpt-4-turbo',
-  'gpt-4',
-  'gpt-3.5-turbo',
-];
+// These are selected by exclusion from RESPONSES_API_MODELS:
+// - gpt-4o, gpt-4o-mini, gpt-4-turbo, gpt-4, gpt-3.5-turbo
 
 export class OpenAIProvider extends AIProvider {
   private baseURL: string;
