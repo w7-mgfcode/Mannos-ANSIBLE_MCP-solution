@@ -40,7 +40,15 @@ export class ProviderFactory {
    * Create a provider instance
    */
   createProvider(config: ProviderFactoryConfig): AIProvider {
-    const providerKey = `${config.provider}-${config.model || 'default'}`;
+    // Build cache key with all non-sensitive configuration values
+    // Explicitly exclude apiKey to avoid caching issues with different credentials
+    const providerKey = [
+      config.provider,
+      config.model || 'default',
+      config.baseURL || 'default',
+      config.timeout?.toString() || 'default',
+      config.maxRetries?.toString() || 'default',
+    ].join('-');
 
     // Return cached provider if exists
     if (this.providers.has(providerKey)) {
