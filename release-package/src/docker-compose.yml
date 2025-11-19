@@ -125,7 +125,7 @@ services:
     ports:
       - "8200:8200"
     environment:
-      - VAULT_DEV_ROOT_TOKEN_ID=${VAULT_ROOT_TOKEN:?VAULT_ROOT_TOKEN environment variable is required}
+      - VAULT_DEV_ROOT_TOKEN_ID=${VAULT_ROOT_TOKEN:-myroot}
       - VAULT_DEV_LISTEN_ADDRESS=0.0.0.0:8200
     cap_add:
       - IPC_LOCK
@@ -156,7 +156,7 @@ services:
       GITLAB_OMNIBUS_CONFIG: |
         external_url 'http://gitlab.local'
         gitlab_rails['gitlab_shell_ssh_port'] = 8022
-        gitlab_rails['initial_root_password'] = '${GITLAB_ROOT_PASSWORD:?GITLAB_ROOT_PASSWORD environment variable is required}'
+        gitlab_rails['initial_root_password'] = '${GITLAB_ROOT_PASSWORD:-ansible-mcp-2024}'
     networks:
       - ansible-network
 
