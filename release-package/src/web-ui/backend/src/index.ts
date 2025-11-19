@@ -149,6 +149,14 @@ app.use(errorHandler);
 // WebSocket manager (will be initialized with server)
 let wsManager: WebSocketManager;
 
+/**
+ * Get the WebSocket manager instance
+ * Use this getter instead of directly accessing wsManager to prevent reassignment
+ */
+export function getWebSocketManager(): WebSocketManager {
+  return wsManager;
+}
+
 // Start server
 async function startServer() {
   try {
@@ -190,7 +198,7 @@ async function startServer() {
 }
 
 // Export for external use
-export { app, wsManager };
+export { app, getWebSocketManager };
 
 // Start if run directly
 startServer();

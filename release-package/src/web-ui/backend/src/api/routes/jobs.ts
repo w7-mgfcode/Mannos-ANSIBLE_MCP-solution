@@ -64,17 +64,30 @@ router.get('/', optionalAuth, async (req: AuthenticatedRequest, res: Response, n
 // NOTE: This route must be defined before /:id to avoid "stats" being treated as an ID
 router.get('/stats/queue', optionalAuth, async (req: AuthenticatedRequest, res: Response, next) => {
   try {
-    const queued = await jobRepository().count({ where: { status: JobStatus.QUEUED } });
-    const processing = await jobRepository().count({ where: { status: JobStatus.PROCESSING } });
-    const completed = await jobRepository().count({ where: { status: JobStatus.COMPLETED } });
-    const failed = await jobRepository().count({ where: { status: JobStatus.FAILED } });
+    // Use single grouped query instead of four separate queries
+    const stats = await jobRepository()
+      .createQueryBuilder('job')
+      .select('job.status', 'status')
+      .addSelect('COUNT(*)', 'count')
+      .groupBy('job.status')
+      .getRawMany();
 
-    res.json({
-      queued,
-      processing,
-      completed,
-      failed
-    });
+    // Convert to object format with defaults for missing statuses
+    const result = {
+      queued: 0,
+      processing: 0,
+      completed: 0,
+      failed: 0
+    };
+
+    for (const stat of stats) {
+      const status = stat.status.toLowerCase();
+      if (status in result) {
+        result[status as keyof typeof result] = parseInt(stat.count, 10);
+      }
+    }
+
+    res.json(result);
   } catch (error) {
     next(error);
   }
@@ -89,6 +102,16 @@ router.get('/:id', optionalAuth, async (req: AuthenticatedRequest, res: Response
 
     if (!job) {
       throw new AppError('Job not found', 404);
+    }
+
+    // Authorization check: if user is authenticated, verify ownership or admin role
+    if (req.user) {
+      const isOwner = job.userId === req.user.id;
+      const isAdmin = req.user.role === 'admin';
+
+      if (!isOwner && !isAdmin) {
+        throw new AppError('Not authorized to view this job', 403);
+      }
     }
 
     res.json(job);

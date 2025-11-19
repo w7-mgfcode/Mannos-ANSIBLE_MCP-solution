@@ -169,6 +169,12 @@ router.put('/:id', authMiddleware, userOrAdmin, async (req: AuthenticatedRequest
 
       // Update file
       if (playbook.filePath) {
+        // Re-validate path to prevent path traversal attacks
+        const resolvedPlaybookDir = path.resolve(PLAYBOOK_DIR);
+        const resolvedFilePath = path.resolve(playbook.filePath);
+        if (!resolvedFilePath.startsWith(resolvedPlaybookDir + path.sep)) {
+          throw new AppError('Invalid file path', 400);
+        }
         await fs.writeFile(playbook.filePath, content, 'utf-8');
       }
     }
@@ -197,6 +203,12 @@ router.delete('/:id', authMiddleware, userOrAdmin, async (req: AuthenticatedRequ
 
     // Delete file if exists
     if (playbook.filePath) {
+      // Re-validate path to prevent path traversal attacks
+      const resolvedPlaybookDir = path.resolve(PLAYBOOK_DIR);
+      const resolvedFilePath = path.resolve(playbook.filePath);
+      if (!resolvedFilePath.startsWith(resolvedPlaybookDir + path.sep)) {
+        throw new AppError('Invalid file path', 400);
+      }
       try {
         await fs.unlink(playbook.filePath);
       } catch {

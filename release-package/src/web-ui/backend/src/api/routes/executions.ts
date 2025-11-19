@@ -33,6 +33,11 @@ router.get('/', optionalAuth, async (req: AuthenticatedRequest, res: Response, n
       .leftJoinAndSelect('execution.executedBy', 'executedBy');
 
     if (status) {
+      // Validate status against ExecutionStatus enum
+      const validStatuses = Object.values(ExecutionStatus);
+      if (!validStatuses.includes(status as ExecutionStatus)) {
+        throw new AppError(`Invalid status filter. Must be one of: ${validStatuses.join(', ')}`, 400);
+      }
       queryBuilder.andWhere('execution.status = :status', { status });
     }
 

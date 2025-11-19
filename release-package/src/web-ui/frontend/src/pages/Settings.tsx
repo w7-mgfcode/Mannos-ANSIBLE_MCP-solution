@@ -27,6 +27,24 @@ export default function Settings() {
 
   const handlePasswordChange = (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Validate password strength
+    if (passwordForm.newPassword.length < 8) {
+      toast.error('Password must be at least 8 characters long');
+      return;
+    }
+
+    // Check for complexity requirements
+    const hasUppercase = /[A-Z]/.test(passwordForm.newPassword);
+    const hasLowercase = /[a-z]/.test(passwordForm.newPassword);
+    const hasNumber = /[0-9]/.test(passwordForm.newPassword);
+    const hasSpecial = /[!@#$%^&*(),.?":{}|<>]/.test(passwordForm.newPassword);
+
+    if (!hasUppercase || !hasLowercase || !hasNumber) {
+      toast.error('Password must contain uppercase, lowercase, and numbers');
+      return;
+    }
+
     if (passwordForm.newPassword !== passwordForm.confirmPassword) {
       toast.error('New passwords do not match');
       return;

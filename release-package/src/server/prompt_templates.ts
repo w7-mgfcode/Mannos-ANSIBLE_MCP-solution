@@ -162,6 +162,8 @@ export class PromptTemplateLibrary {
   }
 
   async saveTemplate(template: PromptTemplate): Promise<void> {
+    // Ensure directory exists before writing
+    await fs.mkdir(this.templatesDir, { recursive: true });
     const filename = `${template.id}.json`;
     const filepath = path.join(this.templatesDir, filename);
     await fs.writeFile(filepath, JSON.stringify(template, null, 2));

@@ -206,8 +206,16 @@ export class AnthropicProvider extends AIProvider {
 
   /**
    * List available Anthropic models
+   * Note: This list can be overridden via environment variable ANTHROPIC_AVAILABLE_MODELS
+   * as a comma-separated string for easier updates without code changes.
    */
   static getAvailableModels(): string[] {
+    // Allow environment override for easier updates
+    const envModels = process.env.ANTHROPIC_AVAILABLE_MODELS;
+    if (envModels) {
+      return envModels.split(',').map(m => m.trim()).filter(m => m.length > 0);
+    }
+
     return [
       // Claude 4.5 Series (Latest)
       'claude-sonnet-4-5-20250929',

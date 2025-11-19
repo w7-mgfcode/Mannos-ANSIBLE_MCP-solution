@@ -1,5 +1,6 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from './lib/store';
+import { WebSocketProvider } from './contexts/WebSocketContext';
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
 import Playbooks from './pages/Playbooks';
@@ -28,18 +29,20 @@ export default function App() {
         path="/*"
         element={
           <ProtectedRoute>
-            <Layout>
-              <Routes>
-                <Route path="/" element={<Dashboard />} />
-                <Route path="/playbooks" element={<Playbooks />} />
-                <Route path="/playbooks/:id" element={<Playbooks />} />
-                <Route path="/executions" element={<Executions />} />
-                <Route path="/executions/:id" element={<Executions />} />
-                <Route path="/templates" element={<Templates />} />
-                <Route path="/jobs" element={<Jobs />} />
-                <Route path="/settings" element={<Settings />} />
-              </Routes>
-            </Layout>
+            <WebSocketProvider>
+              <Layout>
+                <Routes>
+                  <Route path="/" element={<Dashboard />} />
+                  <Route path="/playbooks" element={<Playbooks />} />
+                  <Route path="/playbooks/:id" element={<Playbooks />} />
+                  <Route path="/executions" element={<Executions />} />
+                  <Route path="/executions/:id" element={<Executions />} />
+                  <Route path="/templates" element={<Templates />} />
+                  <Route path="/jobs" element={<Jobs />} />
+                  <Route path="/settings" element={<Settings />} />
+                </Routes>
+              </Layout>
+            </WebSocketProvider>
           </ProtectedRoute>
         }
       />

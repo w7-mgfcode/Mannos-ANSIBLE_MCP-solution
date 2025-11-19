@@ -329,14 +329,29 @@ router.post('/:id/enrich', authMiddleware, async (req: AuthenticatedRequest, res
       throw new AppError('Prompt is required', 400);
     }
 
+    // Validate variables if provided
+    let validatedVariables: Record<string, string> = {};
+    if (templateVariables) {
+      if (typeof templateVariables !== 'object' || Array.isArray(templateVariables)) {
+        throw new AppError('Variables must be an object', 400);
+      }
+      // Only accept string values for template variables
+      for (const [key, value] of Object.entries(templateVariables)) {
+        if (typeof value !== 'string' && typeof value !== 'number' && typeof value !== 'boolean') {
+          throw new AppError(`Variable "${key}" must be a string, number, or boolean`, 400);
+        }
+        validatedVariables[key] = String(value);
+      }
+    }
+
     // This will integrate with MCP server's enrich_prompt tool
-    // templateVariables can be used for variable interpolation in the future
     res.json({
       success: true,
       originalPrompt: prompt,
       templateId: template.id,
       enrichedPrompt: `Using ${template.name} template: ${prompt}`,
-      providedVariables: templateVariables || {}
+      providedVariables: validatedVariables,
+      templateVariables: template.variables
     });
   } catch (error) {
     next(error);
