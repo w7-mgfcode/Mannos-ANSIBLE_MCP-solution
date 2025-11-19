@@ -287,7 +287,6 @@ class AnsibleMCPServer {
     this.vault = null;
     this.metricsServer = null;
     this.rateLimitMap = new Map();
-    this.initialize();
   }
 
   // ===========================================================================
@@ -1877,6 +1876,9 @@ ${template?.context_enrichment.best_practices.slice(0, 3).map(bp => `    # - ${b
   }
 
   async start() {
+    // Initialize before connecting to transport (required by MCP SDK v1.22.0)
+    await this.initialize();
+
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
 
