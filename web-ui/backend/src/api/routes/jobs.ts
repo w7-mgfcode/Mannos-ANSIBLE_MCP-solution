@@ -10,14 +10,22 @@ const jobRepository = () => AppDataSource.getRepository(Job);
 // GET /api/jobs - List jobs
 router.get('/', optionalAuth, async (req: AuthenticatedRequest, res: Response, next) => {
   try {
-    const {
-      page = 1,
-      limit = 20,
-      status,
-      type,
-      sortBy = 'createdAt',
-      sortOrder = 'DESC'
-    } = req.query;
+    const { status, type } = req.query;
+
+    // Sanitize and clamp pagination parameters
+    const parsedPage = parseInt(req.query.page as string, 10) || 1;
+    const parsedLimit = parseInt(req.query.limit as string, 10) || 20;
+    const clampedPage = Math.max(1, parsedPage);
+    const clampedLimit = Math.min(100, Math.max(1, parsedLimit));
+
+    // Whitelist allowed sort fields to prevent SQL injection
+    const allowedSortFields = ['createdAt', 'status', 'type'];
+    const requestedSortBy = req.query.sortBy as string;
+    const normalizedSortBy = allowedSortFields.includes(requestedSortBy) ? requestedSortBy : 'createdAt';
+
+    // Validate sort order
+    const requestedSortOrder = (req.query.sortOrder as string)?.toUpperCase();
+    const normalizedSortOrder: 'ASC' | 'DESC' = requestedSortOrder === 'ASC' ? 'ASC' : 'DESC';
 
     const queryBuilder = jobRepository().createQueryBuilder('job');
 
@@ -32,19 +40,19 @@ router.get('/', optionalAuth, async (req: AuthenticatedRequest, res: Response, n
     const total = await queryBuilder.getCount();
 
     queryBuilder
-      .orderBy(`job.${sortBy}`, sortOrder as 'ASC' | 'DESC')
-      .skip((Number(page) - 1) * Number(limit))
-      .take(Number(limit));
+      .orderBy(`job.${normalizedSortBy}`, normalizedSortOrder)
+      .skip((clampedPage - 1) * clampedLimit)
+      .take(clampedLimit);
 
     const jobs = await queryBuilder.getMany();
 
     res.json({
       jobs,
       pagination: {
-        page: Number(page),
-        limit: Number(limit),
+        page: clampedPage,
+        limit: clampedLimit,
         total,
-        pages: Math.ceil(total / Number(limit))
+        pages: Math.ceil(total / clampedLimit)
       }
     });
   } catch (error) {
