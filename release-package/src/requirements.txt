@@ -23,6 +23,9 @@ pydantic>=2.5.0,<3.0.0
 redis>=5.0.0,<6.0.0
 sqlalchemy>=2.0.0,<3.0.0
 alembic>=1.12.0,<2.0.0
+# PostgreSQL drivers
+asyncpg>=0.29.0,<0.30.0  # Async driver for FastAPI
+psycopg2-binary>=2.9.0,<3.0.0  # Sync driver for Alembic migrations
 
 # Utilities
 python-dotenv>=1.0.0,<2.0.0
