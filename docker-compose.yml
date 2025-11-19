@@ -174,49 +174,51 @@ services:
       - prometheus
 
   # Ansible AWX (optional - for UI)
-  awx-web:
-    image: ansible/awx:latest
-    container_name: ansible-awx-web
-    restart: unless-stopped
-    ports:
-      - "8052:8052"
-    volumes:
-      - awx-projects:/var/lib/awx/projects
-    environment:
-      SECRET_KEY: ${AWX_SECRET_KEY:-changeme}
-      DATABASE_NAME: ${POSTGRES_DB:-awx}
-      DATABASE_USER: ${POSTGRES_USER:-awx}
-      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
-      DATABASE_HOST: postgres
-      DATABASE_PORT: 5432
-      REDIS_HOST: redis
-    networks:
-      - ansible-network
-    depends_on:
-      - postgres
-      - redis
+  # NOTE: AWX Docker images are no longer published to Docker Hub
+  # To use AWX, see: https://github.com/ansible/awx-operator
+  # awx-web:
+  #   image: ansible/awx:latest
+  #   container_name: ansible-awx-web
+  #   restart: unless-stopped
+  #   ports:
+  #     - "8052:8052"
+  #   volumes:
+  #     - awx-projects:/var/lib/awx/projects
+  #   environment:
+  #     SECRET_KEY: ${AWX_SECRET_KEY:-changeme}
+  #     DATABASE_NAME: ${POSTGRES_DB:-awx}
+  #     DATABASE_USER: ${POSTGRES_USER:-awx}
+  #     DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+  #     DATABASE_HOST: postgres
+  #     DATABASE_PORT: 5432
+  #     REDIS_HOST: redis
+  #   networks:
+  #     - ansible-network
+  #   depends_on:
+  #     - postgres
+  #     - redis
 
-  awx-task:
-    image: ansible/awx:latest
-    container_name: ansible-awx-task
-    restart: unless-stopped
-    command: /usr/bin/launch_awx_task.sh
-    volumes:
-      - awx-projects:/var/lib/awx/projects
-    environment:
-      SECRET_KEY: ${AWX_SECRET_KEY:-changeme}
-      DATABASE_NAME: ${POSTGRES_DB:-awx}
-      DATABASE_USER: ${POSTGRES_USER:-awx}
-      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
-      DATABASE_HOST: postgres
-      DATABASE_PORT: 5432
-      REDIS_HOST: redis
-    networks:
-      - ansible-network
-    depends_on:
-      - postgres
-      - redis
-      - awx-web
+  # awx-task:
+  #   image: ansible/awx:latest
+  #   container_name: ansible-awx-task
+  #   restart: unless-stopped
+  #   command: /usr/bin/launch_awx_task.sh
+  #   volumes:
+  #     - awx-projects:/var/lib/awx/projects
+  #   environment:
+  #     SECRET_KEY: ${AWX_SECRET_KEY:-changeme}
+  #     DATABASE_NAME: ${POSTGRES_DB:-awx}
+  #     DATABASE_USER: ${POSTGRES_USER:-awx}
+  #     DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+  #     DATABASE_HOST: postgres
+  #     DATABASE_PORT: 5432
+  #     REDIS_HOST: redis
+  #   networks:
+  #     - ansible-network
+  #   depends_on:
+  #     - postgres
+  #     - redis
+  #     - awx-web
 
   # PostgreSQL for AWX and Web UI
   postgres:
@@ -250,4 +252,4 @@ volumes:
   prometheus-data:
   grafana-data:
   postgres-data:
-  awx-projects:
+  # awx-projects:  # Disabled - AWX not available
