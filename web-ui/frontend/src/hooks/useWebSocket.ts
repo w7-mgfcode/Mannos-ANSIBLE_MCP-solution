@@ -10,6 +10,7 @@ interface WebSocketMessage {
 
 export function useWebSocket() {
   const wsRef = useRef<WebSocket | null>(null);
+  const shouldReconnect = useRef(true);
   const [isConnected, setIsConnected] = useState(false);
   const [lastMessage, setLastMessage] = useState<WebSocketMessage | null>(null);
   const subscribedChannels = useRef<Set<string>>(new Set());
@@ -22,14 +23,17 @@ export function useWebSocket() {
     wsRef.current = ws;
 
     ws.onopen = () => {
-      setIsConnected(true);
-      // Re-subscribe to channels
-      subscribedChannels.current.forEach(channel => {
-        ws.send(JSON.stringify({ type: 'subscribe', channel }));
-      });
+      if (shouldReconnect.current) {
+        setIsConnected(true);
+        // Re-subscribe to channels
+        subscribedChannels.current.forEach(channel => {
+          ws.send(JSON.stringify({ type: 'subscribe', channel }));
+        });
+      }
     };
 
     ws.onmessage = (event) => {
+      if (!shouldReconnect.current) return;
       try {
         const message = JSON.parse(event.data);
         setLastMessage(message);
@@ -39,13 +43,16 @@ export function useWebSocket() {
     };
 
     ws.onclose = () => {
-      setIsConnected(false);
-      // Reconnect after 3 seconds
-      setTimeout(() => {
-        if (wsRef.current?.readyState === WebSocket.CLOSED) {
-          connect();
-        }
-      }, 3000);
+      // Only update state and reconnect if component is still mounted
+      if (shouldReconnect.current) {
+        setIsConnected(false);
+        // Reconnect after 3 seconds
+        setTimeout(() => {
+          if (shouldReconnect.current && wsRef.current?.readyState === WebSocket.CLOSED) {
+            connect();
+          }
+        }, 3000);
+      }
     };
 
     ws.onerror = (error) => {
@@ -54,9 +61,11 @@ export function useWebSocket() {
   }, [token]);
 
   useEffect(() => {
+    shouldReconnect.current = true;
     connect();
 
     return () => {
+      shouldReconnect.current = false;
       if (wsRef.current) {
         wsRef.current.close();
       }
