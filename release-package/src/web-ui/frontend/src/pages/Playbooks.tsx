@@ -12,7 +12,6 @@ import {
   FileCode2,
   Trash2,
   Edit,
-  AlertTriangle,
   Wand2,
 } from 'lucide-react';
 import clsx from 'clsx';

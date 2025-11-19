@@ -78,6 +78,7 @@
       loop:
         - '80'
         - '443'
+      when: ansible_facts['os_family'] == 'Debian'
       tags:
         - firewall
         - security

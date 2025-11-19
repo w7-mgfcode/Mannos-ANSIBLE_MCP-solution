@@ -3,8 +3,7 @@ import {
   PrimaryGeneratedColumn,
   Column,
   CreateDateColumn,
-  UpdateDateColumn,
-  OneToMany
+  UpdateDateColumn
 } from 'typeorm';
 
 export enum UserRole {
@@ -44,5 +43,5 @@ export class User {
   updatedAt!: Date;
 
   @Column({ nullable: true })
-  lastLoginAt!: Date;
+  lastLoginAt?: Date;
 }

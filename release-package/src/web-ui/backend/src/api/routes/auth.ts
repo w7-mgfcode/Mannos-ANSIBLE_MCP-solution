@@ -157,8 +157,12 @@ router.put('/password', authMiddleware, async (req: AuthenticatedRequest, res: R
       throw new AppError('Current and new password are required', 400);
     }
 
+    if (!req.user) {
+      throw new AppError('Not authenticated', 401);
+    }
+
     const user = await userRepository().findOne({
-      where: { id: req.user!.userId }
+      where: { id: req.user.userId }
     });
 
     if (!user) {

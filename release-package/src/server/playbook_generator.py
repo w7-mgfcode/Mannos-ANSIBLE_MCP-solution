@@ -101,6 +101,8 @@ class PlaybookGenerator:
                     context.playbook_type = PlaybookType(pattern_name)
                     break
                 except ValueError:
+                    # Pattern matched but not a valid PlaybookType enum value
+                    # Continue to next pattern - this is expected for custom patterns
                     pass
 
         # Extract environment

@@ -323,18 +323,20 @@ router.post('/:id/enrich', authMiddleware, async (req: AuthenticatedRequest, res
       throw new AppError('Template not found', 404);
     }
 
-    const { prompt, variables } = req.body;
+    const { prompt, variables: templateVariables } = req.body;
 
     if (!prompt) {
       throw new AppError('Prompt is required', 400);
     }
 
     // This will integrate with MCP server's enrich_prompt tool
+    // templateVariables can be used for variable interpolation in the future
     res.json({
       success: true,
       originalPrompt: prompt,
       templateId: template.id,
-      enrichedPrompt: `Using ${template.name} template: ${prompt}`
+      enrichedPrompt: `Using ${template.name} template: ${prompt}`,
+      providedVariables: templateVariables || {}
     });
   } catch (error) {
     next(error);

@@ -212,9 +212,9 @@ export default function Settings() {
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Code Editor Font Size
                     </label>
-                    <select className="input w-40">
+                    <select className="input w-40" defaultValue="14">
                       <option value="12">12px</option>
-                      <option value="14" selected>14px</option>
+                      <option value="14">14px</option>
                       <option value="16">16px</option>
                       <option value="18">18px</option>
                     </select>

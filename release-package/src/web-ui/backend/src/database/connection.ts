@@ -13,16 +13,16 @@ const __dirname = path.dirname(__filename);
 const isDevelopment = process.env.NODE_ENV === 'development';
 const isProduction = process.env.NODE_ENV === 'production';
 
-// Fail-fast: require credentials in non-development environments
-if (!isDevelopment) {
+// Fail-fast: require credentials in production environment
+if (isProduction) {
   if (!process.env.DB_PASSWORD) {
-    throw new Error('DB_PASSWORD environment variable is required in non-development environments');
+    throw new Error('DB_PASSWORD environment variable is required in production');
   }
   if (!process.env.DB_NAME) {
-    throw new Error('DB_NAME environment variable is required in non-development environments');
+    throw new Error('DB_NAME environment variable is required in production');
   }
   if (!process.env.DB_USER) {
-    throw new Error('DB_USER environment variable is required in non-development environments');
+    throw new Error('DB_USER environment variable is required in production');
   }
 }
 

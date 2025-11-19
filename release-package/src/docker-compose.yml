@@ -116,12 +116,14 @@ services:
     networks:
       - ansible-network
 
-  # GitLab for version control (optional)
+  # GitLab for version control (optional - use 'docker compose --profile full up')
   gitlab:
     image: gitlab/gitlab-ce:latest
     container_name: ansible-gitlab
     restart: unless-stopped
     hostname: gitlab.local
+    profiles:
+      - full
     ports:
       - "8080:80"
       - "8443:443"
@@ -173,11 +175,13 @@ services:
     depends_on:
       - prometheus
 
-  # Ansible AWX (optional - for UI)
+  # Ansible AWX (optional - use 'docker compose --profile full up')
   awx-web:
     image: ansible/awx:latest
     container_name: ansible-awx-web
     restart: unless-stopped
+    profiles:
+      - full
     ports:
       - "8052:8052"
     volumes:
@@ -200,6 +204,8 @@ services:
     image: ansible/awx:latest
     container_name: ansible-awx-task
     restart: unless-stopped
+    profiles:
+      - full
     command: /usr/bin/launch_awx_task.sh
     volumes:
       - awx-projects:/var/lib/awx/projects

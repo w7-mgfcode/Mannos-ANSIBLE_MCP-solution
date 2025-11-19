@@ -42,6 +42,8 @@ export function authMiddleware(req: AuthenticatedRequest, res: Response, next: N
     req.user = decoded;
     next();
   } catch (error) {
+    // Log JWT errors for debugging (avoid logging token itself)
+    console.debug('JWT verification failed:', error instanceof Error ? error.message : 'Unknown error');
     res.status(401).json({ error: 'Invalid or expired token' });
   }
 }

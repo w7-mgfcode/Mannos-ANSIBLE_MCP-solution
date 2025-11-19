@@ -41,19 +41,27 @@ RUN apk add --no-cache \
     boto3 \
     azure-cli
 
+# Create non-root user for security
+RUN addgroup -g 1001 -S ansible && \
+    adduser -u 1001 -S ansible -G ansible
+
 # Copy built application
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./
 
-# Create directories
+# Create directories with proper ownership
 RUN mkdir -p /workspace/playbooks \
              /workspace/inventory \
              /workspace/logs \
-             /workspace/templates
+             /workspace/templates \
+    && chown -R ansible:ansible /workspace
 
 # Set up Ansible configuration
 COPY ansible.cfg /etc/ansible/ansible.cfg
+
+# Switch to non-root user
+USER ansible
 
 # Expose MCP port
 EXPOSE 3000
