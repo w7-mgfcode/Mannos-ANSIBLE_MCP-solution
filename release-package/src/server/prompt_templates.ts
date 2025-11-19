@@ -129,20 +129,35 @@ export class PromptTemplateLibrary {
   }
 
   private async loadTemplatesFromDisk(): Promise<void> {
+    // Read directory, only swallow ENOENT (directory not found)
+    let files: string[];
     try {
-      const files = await fs.readdir(this.templatesDir);
-      for (const file of files) {
-        if (file.endsWith('.json')) {
-          const content = await fs.readFile(
-            path.join(this.templatesDir, file),
-            'utf-8'
-          );
+      files = await fs.readdir(this.templatesDir);
+    } catch (error: unknown) {
+      if (error instanceof Error && 'code' in error && (error as NodeJS.ErrnoException).code === 'ENOENT') {
+        // Directory doesn't exist yet, this is expected
+        return;
+      }
+      // Unexpected error reading directory, log and rethrow
+      console.error(`Failed to read templates directory ${this.templatesDir}:`, error);
+      throw error;
+    }
+
+    // Process each JSON file individually
+    for (const file of files) {
+      if (file.endsWith('.json')) {
+        const filepath = path.join(this.templatesDir, file);
+        try {
+          const content = await fs.readFile(filepath, 'utf-8');
           const template = JSON.parse(content) as PromptTemplate;
           this.templates.set(template.id, template);
+        } catch (error: unknown) {
+          // Log error with filename and skip this file
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          console.error(`Failed to load template from ${file}: ${errorMessage}`);
+          // Continue processing other files
         }
       }
-    } catch {
-      // Directory may not exist yet
     }
   }
 
