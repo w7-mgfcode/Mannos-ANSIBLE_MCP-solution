@@ -18,6 +18,7 @@ import {
   EnrichedPrompt
 } from './prompt_templates.js';
 import { AIProvider, createProviderFromEnv } from './providers/index.js';
+import { validatePath } from './validation.js';
 import winston from 'winston';
 import { default as RedisModule } from 'ioredis';
 import Vault from 'node-vault';
@@ -1355,8 +1356,56 @@ class AnsibleMCPServer {
     const params = RefinePlaybookSchema.parse(args);
 
     try {
+      // Validate playbook path for security
+      const pathValidation = validatePath(params.playbook_path, securityConfig.allowedPaths);
+      if (!pathValidation.valid) {
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: JSON.stringify({
+                success: false,
+                error: `Invalid playbook path: ${pathValidation.error}`
+              }, null, 2)
+            }
+          ],
+          isError: true
+        };
+      }
+
       // Read current playbook
       let content = await fs.readFile(params.playbook_path, 'utf-8');
+
+      // Compute safe refined path - handle .yml, .yaml, and extensionless files
+      const computeRefinedPath = (originalPath: string): string => {
+        const parsed = path.parse(originalPath);
+        const baseDir = parsed.dir;
+        const baseName = parsed.name;
+        const ext = parsed.ext || '.yml';
+        // Normalize extension
+        const normalizedExt = ext === '.yaml' ? '.yaml' : '.yml';
+        const refinedName = `${baseName}_refined${normalizedExt}`;
+        return path.join(baseDir, refinedName);
+      };
+
+      const refinedPath = computeRefinedPath(params.playbook_path);
+
+      // Validate refined path is also within allowed directories
+      const refinedPathValidation = validatePath(refinedPath, securityConfig.allowedPaths);
+      if (!refinedPathValidation.valid) {
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: JSON.stringify({
+                success: false,
+                error: `Invalid refined path: ${refinedPathValidation.error}`
+              }, null, 2)
+            }
+          ],
+          isError: true
+        };
+      }
 
       // Use AI provider for intelligent refinement if available
       if (this.aiProvider) {
@@ -1382,7 +1431,6 @@ Please provide an improved version of the playbook that addresses the feedback a
             },
           ], { temperature: 0.3 });
 
-          const refinedPath = params.playbook_path.replace('.yml', '_refined.yml');
           await fs.writeFile(refinedPath, refinedContent.content);
 
           return {
@@ -1411,8 +1459,40 @@ Please provide an improved version of the playbook that addresses the feedback a
       // Fallback to rule-based refinement
       logger.debug('Using rule-based refinement');
 
-      // Parse YAML
-      const playbook = yaml.load(content) as any;
+      // Parse YAML with validation
+      const parsedContent = yaml.load(content);
+
+      // Validate YAML structure - must be an array (playbook) or object
+      if (!parsedContent || (typeof parsedContent !== 'object')) {
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: JSON.stringify({
+                success: false,
+                error: 'Invalid playbook format: YAML must be an array or object'
+              }, null, 2)
+            }
+          ],
+          isError: true
+        };
+      }
+
+      // Ensure playbook is an array
+      const playbook = Array.isArray(parsedContent) ? parsedContent : [parsedContent];
+
+      // Ensure playbook[0] exists and has tasks array
+      if (playbook.length === 0) {
+        playbook.push({ name: 'Refined Playbook', hosts: 'all', tasks: [] });
+      }
+
+      if (!playbook[0]) {
+        playbook[0] = { name: 'Refined Playbook', hosts: 'all', tasks: [] };
+      }
+
+      if (!Array.isArray(playbook[0].tasks)) {
+        playbook[0].tasks = [];
+      }
 
       // Apply refinements based on feedback
       if (params.validation_errors) {
@@ -1432,7 +1512,7 @@ Please provide an improved version of the playbook that addresses the feedback a
           ...task,
           ignore_errors: false,
           failed_when: false,
-          register: `${task.name.replace(/\s+/g, '_')}_result`
+          register: task.name ? `${task.name.replace(/\s+/g, '_')}_result` : 'task_result'
         }));
       }
 
@@ -1446,7 +1526,6 @@ Please provide an improved version of the playbook that addresses the feedback a
 
       // Save refined playbook
       const refinedContent = yaml.dump(playbook, { indent: 2 });
-      const refinedPath = params.playbook_path.replace('.yml', '_refined.yml');
       await fs.writeFile(refinedPath, refinedContent);
 
       return {
