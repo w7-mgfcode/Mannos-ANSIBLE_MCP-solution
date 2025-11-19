@@ -125,13 +125,17 @@ export class OllamaProvider extends AIProvider {
       throw new Error('No message returned from Ollama');
     }
 
+    // Check for presence of token counts (accept 0 as valid)
+    const hasPromptCount = typeof response.prompt_eval_count === 'number';
+    const hasEvalCount = typeof response.eval_count === 'number';
+
     return {
       content: response.message.content,
-      tokensUsed: response.prompt_eval_count && response.eval_count
+      tokensUsed: hasPromptCount && hasEvalCount
         ? {
-            prompt: response.prompt_eval_count,
-            completion: response.eval_count,
-            total: response.prompt_eval_count + response.eval_count,
+            prompt: response.prompt_eval_count!,
+            completion: response.eval_count!,
+            total: response.prompt_eval_count! + response.eval_count!,
           }
         : undefined,
       finishReason: response.done ? 'stop' : 'length',
