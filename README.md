@@ -237,6 +237,43 @@ AI_MODEL=gpt-4-turbo               # Model to use (gpt-4-turbo, gpt-4o, etc.)
 OPENAI_API_KEY=sk-your-key         # API key for AI provider
 ```
 
+### Production Deployment Credentials
+
+**IMPORTANT**: For production deployments, you MUST set secure credentials via environment variables. Never use default values in production.
+
+```bash
+# Create .env file from template
+cp .env.example .env
+
+# Generate secure JWT secret (REQUIRED - deployment will fail without it)
+export JWT_SECRET=$(openssl rand -base64 32)
+
+# Or add to .env file:
+echo "JWT_SECRET=$(openssl rand -base64 32)" >> .env
+
+# Other required credentials for production:
+POSTGRES_USER=your_db_user           # PostgreSQL username
+POSTGRES_PASSWORD=strong_password    # PostgreSQL password (min 16 chars)
+POSTGRES_DB=awx                      # PostgreSQL database name
+WEB_DB_NAME=ansible_mcp              # Web UI database name
+
+VAULT_ROOT_TOKEN=your-vault-token    # HashiCorp Vault root token
+AWX_SECRET_KEY=your-awx-secret       # AWX secret key
+GITLAB_ROOT_PASSWORD=gitlab-pass     # GitLab admin password
+GRAFANA_ADMIN_PASSWORD=grafana-pass  # Grafana admin password
+```
+
+**JWT_SECRET is mandatory** - The web UI service will not start without it. Generate a secure secret using:
+- `openssl rand -base64 32` (recommended)
+- `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`
+
+**Security Best Practices**:
+- Use a password manager to generate strong, unique passwords
+- Never commit `.env` files to version control
+- Rotate credentials periodically
+- Use different credentials for development and production
+- Consider using external secret management (Vault, AWS Secrets Manager)
+
 ### Health Check & Metrics
 
 ```bash
