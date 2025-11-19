@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.0.1] - 2025-11-19
+
+### Fixed
+
+**Security Improvements**
+- Removed insecure default passwords from docker-compose.yml (GitLab, Grafana)
+- Removed weak default password from PostgreSQL template
+- Added path re-validation in playbook update/delete operations
+- Added authorization check for job detail endpoint
+- Fixed options spread order in AI provider base to prevent undefined overriding defaults
+
+**Code Quality**
+- Fixed type consistency in execution stats (return numbers not strings)
+- Added state reset in useExecutionStream when executionId changes
+- Used consistent undefined checks for playbook update fields
+- Imported NextFunction type in templates.ts routes
+- Added environment variable override for Anthropic models list
+- Updated Anthropic model list to current API identifiers
+- Optimized queue stats query to use single GROUP BY
+- Added status filter validation against ExecutionStatus enum
+- Added template variables validation in enrich endpoint
+- Added password strength validation in Settings.tsx
+- Ensured directory exists before saveTemplate writes
+
+**Architecture**
+- Created WebSocketContext for centralized WebSocket connection
+- Exported wsManager via getter function to prevent reassignment
+
+**Documentation**
+- Documented execution cancellation limitation with TODO
+- Added SECURITY comment for required password variables
+
+---
+
 ## [2.0.0] - 2025-11-18
 
 ### Added

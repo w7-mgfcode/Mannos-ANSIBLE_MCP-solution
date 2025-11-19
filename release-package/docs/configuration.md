@@ -49,7 +49,7 @@ These MUST be set for the system to function:
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `AI_PROVIDER` | `openai` | AI provider: `openai`, `anthropic`, `gemini`, `ollama` |
-| `AI_MODEL` | `gpt-4` | Model to use |
+| `AI_MODEL` | `gpt-4.1` | Model to use |
 | `OPENAI_API_KEY` | *(none)* | OpenAI API key |
 | `ANTHROPIC_API_KEY` | *(none)* | Anthropic API key |
 | `GEMINI_API_KEY` | *(none)* | Google Gemini API key |
@@ -144,40 +144,48 @@ Detected secrets are reported but not blocked by default.
 
 ```bash
 AI_PROVIDER=openai
-AI_MODEL=gpt-4-turbo
+AI_MODEL=gpt-4.1
 OPENAI_API_KEY=sk-your-api-key
 ```
 
 **Available models:**
-- `gpt-4-turbo` - Best for complex playbooks
-- `gpt-4` - High quality, slower
-- `gpt-4o` - Optimized for speed
-- `gpt-3.5-turbo` - Fast, lower quality
+- `gpt-5` - Most capable
+- `gpt-4.1` - Recommended for production
+- `gpt-4.1-mini` - Fast & affordable
+- `gpt-4o` - Multimodal
+- `o4-mini`, `o3` - Reasoning models
+
+> **Note:** Model list can be overridden via `OPENAI_AVAILABLE_MODELS` environment variable (comma-separated).
 
 ### Anthropic (Claude)
 
 ```bash
 AI_PROVIDER=anthropic
-AI_MODEL=claude-3-sonnet-20240229
+AI_MODEL=claude-sonnet-4-20250514
 ANTHROPIC_API_KEY=sk-ant-your-key
 ```
 
 **Available models:**
-- `claude-3-opus-20240229` - Highest quality
-- `claude-3-sonnet-20240229` - Balanced
-- `claude-3-haiku-20240307` - Fast
+- `claude-opus-4-1-20250805` - Most capable
+- `claude-opus-4-20250514` - Flagship
+- `claude-sonnet-4-20250514` - Balanced (recommended)
+- `claude-3-7-sonnet-20250219` - Efficient
+- `claude-3-5-haiku-20241022` - Fast & affordable
+
+> **Note:** Model list can be overridden via `ANTHROPIC_AVAILABLE_MODELS` environment variable (comma-separated).
 
 ### Google Gemini
 
 ```bash
 AI_PROVIDER=gemini
-AI_MODEL=gemini-1.5-pro
+AI_MODEL=gemini-2.5-flash
 GEMINI_API_KEY=your-gemini-key
 ```
 
 **Available models:**
-- `gemini-1.5-pro` - Most capable
-- `gemini-1.5-flash` - Faster
+- `gemini-3-pro` - Most intelligent
+- `gemini-2.5-flash` - Recommended (fast & capable)
+- `gemini-2.5-flash-lite` - Most cost-efficient
 
 ### Ollama (Local)
 
@@ -473,7 +481,7 @@ LOG_LEVEL=info
 MCP_ENABLE_AUTH=true
 MCP_API_KEY=<secure-api-key>
 AI_PROVIDER=openai
-AI_MODEL=gpt-4-turbo
+AI_MODEL=gpt-4.1
 OPENAI_API_KEY=sk-<your-key>
 ```
 
