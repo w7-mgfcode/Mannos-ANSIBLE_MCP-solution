@@ -36,14 +36,22 @@ RUN apk add --no-cache \
     curl \
     jq
 
+# Install build dependencies for Python packages that need compilation
+RUN apk add --no-cache --virtual .build-deps \
+    gcc \
+    python3-dev \
+    musl-dev \
+    linux-headers \
+    libffi-dev
+
 # Create virtual environment and install Python packages
 RUN python3 -m venv /opt/venv && \
     /opt/venv/bin/pip install --no-cache-dir \
     kubernetes \
     openshift \
     pyvmomi \
-    boto3 \
-    azure-cli
+    boto3 && \
+    apk del .build-deps
 
 # Add venv to PATH
 ENV PATH="/opt/venv/bin:$PATH"
