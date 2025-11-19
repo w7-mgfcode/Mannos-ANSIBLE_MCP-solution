@@ -11,7 +11,7 @@ const userRepository = () => AppDataSource.getRepository(User);
 // POST /api/auth/register
 router.post('/register', async (req, res: Response, next) => {
   try {
-    const { username, email, password, role } = req.body;
+    const { username, email, password } = req.body;
 
     if (!username || !email || !password) {
       throw new AppError('Username, email and password are required', 400);
@@ -29,12 +29,12 @@ router.post('/register', async (req, res: Response, next) => {
     // Hash password
     const passwordHash = await bcrypt.hash(password, 12);
 
-    // Create user
+    // Create user - always assign USER role, admin roles must be set by admins
     const user = userRepository().create({
       username,
       email,
       passwordHash,
-      role: role || UserRole.USER
+      role: UserRole.USER
     });
 
     await userRepository().save(user);
