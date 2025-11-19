@@ -53,7 +53,7 @@ function CreatePlaybookModal({ isOpen, onClose, onSuccess }: CreateModalProps) {
 
   const generateMutation = useMutation({
     mutationFn: (data: any) => playbooksApi.generate(data),
-    onSuccess: (response) => {
+    onSuccess: () => {
       toast.success('Generation started');
       // In a real implementation, this would create a job and redirect
       onClose();

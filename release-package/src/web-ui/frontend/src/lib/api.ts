@@ -94,6 +94,7 @@ export const executionsApi = {
   list: (params?: {
     page?: number;
     limit?: number;
+    offset?: number;
     status?: string;
     playbookId?: string;
   }) => api.get('/executions', { params }),
