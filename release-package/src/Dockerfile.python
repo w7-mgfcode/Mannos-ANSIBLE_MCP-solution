@@ -31,8 +31,10 @@ RUN apt-get update && apt-get install -y \
 COPY --from=builder /root/.local /root/.local
 
 # Copy application code
-COPY src/ ./src/
-COPY templates/ ./templates/
+COPY server/ ./src/
+
+# Create templates directory (templates are embedded in code)
+RUN mkdir -p ./templates
 
 # Make sure scripts in .local are usable
 ENV PATH=/root/.local/bin:$PATH
