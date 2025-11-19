@@ -60,11 +60,14 @@ app.use(helmet({
       defaultSrc: ["'self'"],
       // TODO: Replace 'unsafe-inline' with nonces for better XSS protection
       scriptSrc: ["'self'", "'unsafe-inline'"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com"],
       imgSrc: ["'self'", "data:", "https:"],
       connectSrc: ["'self'", "ws:", "wss:"]
     }
-  }
+  },
+  // Disable HSTS for HTTP development/testing
+  hsts: false
 }));
 
 // CORS configuration
