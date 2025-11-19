@@ -56,10 +56,8 @@ cryptography>=41.0.0,<42.0.0
 python-jose[cryptography]>=3.3.0,<4.0.0
 passlib[bcrypt]>=1.7.4,<2.0.0
 
-# Cloud providers (optional)
-boto3>=1.29.0,<2.0.0  # AWS
-azure-mgmt-compute>=30.0.0,<31.0.0  # Azure
-google-cloud-compute>=1.14.0,<2.0.0  # GCP
+# Cloud providers (optional) - install separately:
+# pip install -r requirements-cloud.txt
 
 # Kubernetes
 kubernetes>=28.1.0,<29.0.0
