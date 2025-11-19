@@ -1,0 +1,42 @@
+# Prometheus Configuration for Ansible MCP Server
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    monitor: 'ansible-mcp-monitor'
+
+# Alertmanager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          # - alertmanager:9093
+
+# Rule files
+rule_files:
+  # - "alerts/*.yml"
+
+# Scrape configurations
+scrape_configs:
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Ansible MCP Server
+  - job_name: 'ansible-mcp'
+    static_configs:
+      - targets: ['ansible-mcp:3000']
+    metrics_path: /metrics
+
+  # Node Exporter (if installed on hosts)
+  - job_name: 'node'
+    static_configs:
+      - targets:
+        - 'node-exporter:9100'
+
+  # Redis
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis:6379']

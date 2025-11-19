@@ -1,0 +1,26 @@
+# HashiCorp Vault Configuration Example
+# Copy to vault.hcl and modify for production use
+
+# Storage backend
+storage "file" {
+  path = "/vault/data"
+}
+
+# Listener configuration
+listener "tcp" {
+  address     = "0.0.0.0:8200"
+  tls_disable = 1  # Enable TLS in production!
+
+  # For production with TLS:
+  # tls_cert_file = "/vault/certs/vault.crt"
+  # tls_key_file  = "/vault/certs/vault.key"
+}
+
+# API address
+api_addr = "http://127.0.0.1:8200"
+
+# UI
+ui = true
+
+# Disable mlock for development (enable in production)
+disable_mlock = true

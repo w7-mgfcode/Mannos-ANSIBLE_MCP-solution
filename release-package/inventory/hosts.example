@@ -1,0 +1,33 @@
+# Ansible Inventory Example / Példa Ansible Inventory
+#
+# Copy this file to 'hosts' and modify according to your infrastructure
+# Másolja ezt a fájlt 'hosts' néven és módosítsa az infrastruktúrájának megfelelően
+
+[webservers]
+web1.example.com ansible_host=10.0.1.10
+web2.example.com ansible_host=10.0.1.11
+
+[databases]
+db1.example.com ansible_host=10.0.2.10
+db2.example.com ansible_host=10.0.2.11
+
+[kubernetes:children]
+k8s_masters
+k8s_workers
+
+[k8s_masters]
+k8s-master1 ansible_host=10.0.3.10
+
+[k8s_workers]
+k8s-worker1 ansible_host=10.0.3.20
+k8s-worker2 ansible_host=10.0.3.21
+k8s-worker3 ansible_host=10.0.3.22
+
+[monitoring]
+prometheus ansible_host=10.0.4.10
+grafana ansible_host=10.0.4.11
+
+[all:vars]
+ansible_user=ansible
+ansible_ssh_private_key_file=/path/to/your/key
+ansible_python_interpreter=/usr/bin/python3
