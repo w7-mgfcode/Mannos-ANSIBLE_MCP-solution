@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { templatesApi } from '../lib/api';
-import { FileTemplate, Search, Tag } from 'lucide-react';
+import { Files, Search, Tag } from 'lucide-react';
 import { useState } from 'react';
 import { Light as SyntaxHighlighter } from 'react-syntax-highlighter';
 import yaml from 'react-syntax-highlighter/dist/esm/languages/hljs/yaml';
@@ -73,7 +73,7 @@ export default function Templates() {
             </div>
           ) : templates?.templates?.length === 0 ? (
             <div className="card p-8 text-center">
-              <FileTemplate className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+              <Files className="w-12 h-12 text-gray-300 mx-auto mb-4" />
               <p className="text-gray-500">No templates found</p>
             </div>
           ) : (
@@ -144,7 +144,7 @@ export default function Templates() {
             </div>
           ) : (
             <div className="card p-8 text-center">
-              <FileTemplate className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+              <Files className="w-12 h-12 text-gray-300 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-gray-900 mb-2">
                 Select a template
               </h3>

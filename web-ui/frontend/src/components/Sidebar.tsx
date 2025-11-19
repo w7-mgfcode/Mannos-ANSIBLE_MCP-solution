@@ -3,7 +3,7 @@ import {
   LayoutDashboard,
   FileCode2,
   Play,
-  FileTemplate,
+  Files,
   Settings,
   ChevronLeft,
   ChevronRight,
@@ -17,7 +17,7 @@ const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
   { name: 'Playbooks', href: '/playbooks', icon: FileCode2 },
   { name: 'Executions', href: '/executions', icon: Play },
-  { name: 'Templates', href: '/templates', icon: FileTemplate },
+  { name: 'Templates', href: '/templates', icon: Files },
   { name: 'Jobs', href: '/jobs', icon: Activity },
   { name: 'Settings', href: '/settings', icon: Settings },
 ];
