@@ -174,9 +174,13 @@ router.post('/:id/stop', authMiddleware, userOrAdmin, async (req: AuthenticatedR
       throw new AppError('Execution is not running', 400);
     }
 
-    // This will be integrated with actual execution cancellation
+    // Mark execution as cancelled in DB
+    // TODO: Implement actual process cancellation via WebSocket/signal mechanism
+    // Currently this only updates the database state - the actual ansible-playbook
+    // process may continue running until it completes or times out.
     execution.status = ExecutionStatus.CANCELLED;
     execution.completedAt = new Date();
+    execution.error = 'Execution cancelled by user';
     await executionRepository().save(execution);
 
     res.json({

@@ -84,9 +84,9 @@ export abstract class AIProvider {
     };
 
     const result = await this.generate([systemMessage, userMessage], {
+      ...options,
       temperature: options?.temperature ?? 0.7,
       maxTokens: options?.maxTokens ?? 2000,
-      ...options,
     });
 
     return result.content;
