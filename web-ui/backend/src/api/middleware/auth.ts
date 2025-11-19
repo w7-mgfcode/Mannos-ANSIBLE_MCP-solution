@@ -24,7 +24,7 @@ if (!JWT_SECRET) {
 const SECRET: string = JWT_SECRET;
 
 export function generateToken(payload: JwtPayload): string {
-  return jwt.sign(payload, SECRET, { expiresIn: JWT_EXPIRY });
+  return jwt.sign(payload, SECRET, { expiresIn: JWT_EXPIRY } as jwt.SignOptions);
 }
 
 export function verifyToken(token: string): JwtPayload {
