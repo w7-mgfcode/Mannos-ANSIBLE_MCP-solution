@@ -5,6 +5,24 @@
 
 import { describe, test, expect, jest } from '@jest/globals';
 
+// Import actual production code for testing
+import {
+  validatePath,
+  DEFAULT_ALLOWED_PATHS,
+  detectSecrets,
+  isJinjaVariable,
+  sanitizeTags,
+  validatePlaybookSize,
+  RateLimiter,
+  checkBestPractices,
+  calculateBackoff,
+  withRetry,
+  DEFAULT_RETRY_CONFIG,
+  METRIC_NAMES,
+  HISTOGRAM_BUCKETS,
+  isValidMetricName,
+} from './validation.js';
+
 // Mock external dependencies
 jest.mock('ioredis', () => {
   return jest.fn().mockImplementation(() => ({
@@ -30,79 +48,66 @@ jest.mock('node-vault', () => {
 describe('Security Features', () => {
   describe('Path Validation', () => {
     test('should reject path traversal attempts with ../', () => {
-      const maliciousPath = '/tmp/ansible-mcp/../../../etc/passwd';
-      expect(maliciousPath.includes('..')).toBe(true);
+      const result = validatePath('/tmp/ansible-mcp/../../../etc/passwd');
+      expect(result.valid).toBe(false);
+      expect(result.error).toContain('traversal');
     });
 
     test('should reject paths outside allowed directories', () => {
-      const allowedPaths = ['/tmp/ansible-mcp', '/workspace/playbooks'];
-      const testPath = '/etc/passwd';
-      const isAllowed = allowedPaths.some(allowed => testPath.startsWith(allowed));
-      expect(isAllowed).toBe(false);
+      const result = validatePath('/etc/passwd');
+      expect(result.valid).toBe(false);
+      expect(result.error).toContain('outside allowed');
     });
 
     test('should accept paths within allowed directories', () => {
-      const allowedPaths = ['/tmp/ansible-mcp', '/workspace/playbooks'];
-      const testPath = '/tmp/ansible-mcp/playbook_123.yml';
-      const isAllowed = allowedPaths.some(allowed => testPath.startsWith(allowed));
-      expect(isAllowed).toBe(true);
+      const result = validatePath('/tmp/ansible-mcp/playbook_123.yml');
+      expect(result.valid).toBe(true);
+      expect(result.error).toBeUndefined();
     });
 
     test('should reject null byte injection', () => {
-      const maliciousPath = '/tmp/ansible-mcp/file\0.yml';
-      expect(maliciousPath.includes('\0')).toBe(true);
+      const result = validatePath('/tmp/ansible-mcp/file\0.yml');
+      expect(result.valid).toBe(false);
+      expect(result.error).toContain('Null byte');
+    });
+
+    test('should use default allowed paths', () => {
+      expect(DEFAULT_ALLOWED_PATHS).toContain('/tmp/ansible-mcp');
+      expect(DEFAULT_ALLOWED_PATHS).toContain('/workspace/playbooks');
     });
   });
 
   describe('Secrets Detection', () => {
-    const secretPatterns = [
-      { name: 'AWS Access Key', pattern: /AKIA[0-9A-Z]{16}/gi },
-      { name: 'Password', pattern: /password['":\s]*['"]?([^'"}\s]{8,})/gi },
-      { name: 'Private Key', pattern: /-----BEGIN (?:RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----/gi },
-      { name: 'GitHub Token', pattern: /gh[ps]_[a-zA-Z0-9]{36}/gi },
-    ];
-
     test('should detect AWS access keys', () => {
-      const content = 'aws_access_key_id: AKIAIOSFODNN7EXAMPLE';
-      const hasSecret = secretPatterns.some(({ pattern }) => {
-        pattern.lastIndex = 0;
-        return pattern.test(content);
-      });
-      expect(hasSecret).toBe(true);
+      const result = detectSecrets('aws_access_key_id: AKIAIOSFODNN7EXAMPLE');
+      expect(result.hasSecrets).toBe(true);
+      expect(result.detectedSecrets).toContain('AWS Access Key');
     });
 
     test('should detect hardcoded passwords', () => {
-      const content = 'password: "supersecretpassword123"';
-      const hasSecret = secretPatterns.some(({ pattern }) => {
-        pattern.lastIndex = 0;
-        return pattern.test(content);
-      });
-      expect(hasSecret).toBe(true);
+      const result = detectSecrets('password: "supersecretpassword123"');
+      expect(result.hasSecrets).toBe(true);
+      expect(result.detectedSecrets).toContain('Password');
     });
 
     test('should detect private keys', () => {
-      const content = '-----BEGIN RSA PRIVATE KEY-----\nMIIEpA...';
-      const hasSecret = secretPatterns.some(({ pattern }) => {
-        pattern.lastIndex = 0;
-        return pattern.test(content);
-      });
-      expect(hasSecret).toBe(true);
+      const result = detectSecrets('-----BEGIN RSA PRIVATE KEY-----\nMIIEpA...');
+      expect(result.hasSecrets).toBe(true);
+      expect(result.detectedSecrets).toContain('Private Key');
     });
 
     test('should detect GitHub tokens', () => {
-      const content = 'github_token: ghp_1234567890abcdefghijklmnopqrstuvwxyz';
-      const hasSecret = secretPatterns.some(({ pattern }) => {
-        pattern.lastIndex = 0;
-        return pattern.test(content);
-      });
-      expect(hasSecret).toBe(true);
+      const result = detectSecrets('github_token: ghp_1234567890abcdefghijklmnopqrstuvwxyz');
+      expect(result.hasSecrets).toBe(true);
+      expect(result.detectedSecrets).toContain('GitHub Token');
     });
 
     test('should not flag Jinja2 variables as secrets', () => {
       const content = 'password: "{{ vault_password }}"';
-      // This should be skipped in actual implementation
-      const isJinja = content.includes('{{ ') && content.includes(' }}');
-      expect(isJinja).toBe(true);
+      expect(isJinjaVariable(content)).toBe(true);
+      // detectSecrets should skip Jinja variables
+      const result = detectSecrets(content);
+      expect(result.hasSecrets).toBe(false);
     });
 
     test('should not flag safe content', () => {
@@ -112,48 +117,52 @@ describe('Security Features', () => {
             name: nginx
             state: present
       `;
-      const hasSecret = secretPatterns.some(({ pattern }) => {
-        pattern.lastIndex = 0;
-        return pattern.test(content);
-      });
-      expect(hasSecret).toBe(false);
+      const result = detectSecrets(content);
+      expect(result.hasSecrets).toBe(false);
+      expect(result.detectedSecrets).toHaveLength(0);
     });
   });
 
   describe('Rate Limiting', () => {
-    test('should track requests within time window', () => {
-      const rateLimitMap = new Map<string, number[]>();
-      const windowMs = 60000;
-      const maxRequests = 100;
-
-      // Simulate requests
+    test('should allow requests within rate limit', () => {
+      const limiter = new RateLimiter(60000, 100);
       const clientId = 'test-client';
-      const requests: number[] = [];
-      const now = Date.now();
 
+      // Make 50 requests - should all be allowed
       for (let i = 0; i < 50; i++) {
-        requests.push(now - i * 1000);
+        const result = limiter.checkLimit(clientId);
+        expect(result.allowed).toBe(true);
+        expect(result.remaining).toBeGreaterThanOrEqual(0);
       }
-      rateLimitMap.set(clientId, requests);
 
-      const recentRequests = requests.filter(time => now - time < windowMs);
-      expect(recentRequests.length).toBeLessThan(maxRequests);
+      expect(limiter.getRequestCount(clientId)).toBe(50);
     });
 
     test('should block requests exceeding rate limit', () => {
-      const maxRequests = 100;
-      const requests: number[] = [];
-      const now = Date.now();
+      const limiter = new RateLimiter(60000, 10);
+      const clientId = 'test-client';
 
-      // Simulate 100 requests
-      for (let i = 0; i < 100; i++) {
-        requests.push(now - i * 100);
+      // Make 10 requests to hit the limit
+      for (let i = 0; i < 10; i++) {
+        const result = limiter.checkLimit(clientId);
+        expect(result.allowed).toBe(true);
       }
 
-      const windowMs = 60000;
-      const recentRequests = requests.filter(time => now - time < windowMs);
-      expect(recentRequests.length).toBe(100);
-      expect(recentRequests.length >= maxRequests).toBe(true);
+      // 11th request should be blocked
+      const result = limiter.checkLimit(clientId);
+      expect(result.allowed).toBe(false);
+      expect(result.remaining).toBe(0);
+    });
+
+    test('should clear rate limit data', () => {
+      const limiter = new RateLimiter(60000, 10);
+      const clientId = 'test-client';
+
+      limiter.checkLimit(clientId);
+      expect(limiter.getRequestCount(clientId)).toBe(1);
+
+      limiter.clear();
+      expect(limiter.getRequestCount(clientId)).toBe(0);
     });
   });
 });
@@ -166,32 +175,32 @@ describe('Input Validation', () => {
   describe('Tag Sanitization', () => {
     test('should sanitize tags to prevent injection', () => {
       const maliciousTags = ['deploy; rm -rf /', 'test$(whoami)', 'prod`id`'];
-      const sanitizedTags = maliciousTags.map(tag =>
-        tag.replace(/[^a-zA-Z0-9_-]/g, '')
-      ).filter(tag => tag.length > 0);
-
+      const sanitizedTags = sanitizeTags(maliciousTags);
       expect(sanitizedTags).toEqual(['deployrm-rf', 'testwhoami', 'prodid']);
     });
 
     test('should allow valid tags', () => {
       const validTags = ['deploy', 'production', 'web-server', 'app_v2'];
-      const sanitizedTags = validTags.map(tag =>
-        tag.replace(/[^a-zA-Z0-9_-]/g, '')
-      );
-
+      const sanitizedTags = sanitizeTags(validTags);
       expect(sanitizedTags).toEqual(validTags);
+    });
+
+    test('should filter empty tags', () => {
+      const tagsWithEmpty = ['valid', '!!!', '', 'also-valid'];
+      const sanitizedTags = sanitizeTags(tagsWithEmpty);
+      expect(sanitizedTags).toEqual(['valid', 'also-valid']);
     });
   });
 
   describe('Playbook Size Validation', () => {
     test('should reject oversized playbooks', () => {
-      const maxSize = 1024 * 1024; // 1MB
-      const oversizedContent = 'x'.repeat(maxSize + 1);
-      expect(oversizedContent.length > maxSize).toBe(true);
+      const oversizedContent = 'x'.repeat(1024 * 1024 + 1);
+      const result = validatePlaybookSize(oversizedContent);
+      expect(result.valid).toBe(false);
+      expect(result.error).toContain('exceeds maximum');
     });
 
     test('should accept normal-sized playbooks', () => {
-      const maxSize = 1024 * 1024;
       const normalContent = `
         ---
         - name: Test Playbook
@@ -201,7 +210,15 @@ describe('Input Validation', () => {
               debug:
                 msg: "Hello World"
       `;
-      expect(normalContent.length < maxSize).toBe(true);
+      const result = validatePlaybookSize(normalContent);
+      expect(result.valid).toBe(true);
+      expect(result.error).toBeUndefined();
+    });
+
+    test('should use custom max size', () => {
+      const content = 'x'.repeat(100);
+      const result = validatePlaybookSize(content, 50);
+      expect(result.valid).toBe(false);
     });
   });
 });
@@ -258,8 +275,8 @@ describe('Best Practices Validation', () => {
               name: nginx
     `;
 
-    const hasBecomeDirective = content.includes('become:') || content.includes('become_user:');
-    expect(hasBecomeDirective).toBe(false);
+    const result = checkBestPractices(content);
+    expect(result.warnings.some(w => w.includes('become'))).toBe(true);
   });
 
   test('should warn about missing tags', () => {
@@ -272,8 +289,8 @@ describe('Best Practices Validation', () => {
               name: nginx
     `;
 
-    const hasTags = content.includes('tags:');
-    expect(hasTags).toBe(false);
+    const result = checkBestPractices(content);
+    expect(result.warnings.some(w => w.includes('tags'))).toBe(true);
   });
 
   test('should detect undefined handlers', () => {
@@ -288,9 +305,32 @@ describe('Best Practices Validation', () => {
             notify: restart service
     `;
 
-    const hasNotify = content.includes('notify:');
-    const hasHandlers = content.includes('handlers:');
-    expect(hasNotify && !hasHandlers).toBe(true);
+    const result = checkBestPractices(content);
+    expect(result.warnings.some(w => w.includes('handlers'))).toBe(true);
+  });
+
+  test('should not warn for well-formed playbooks', () => {
+    const content = `
+      - name: Good Playbook
+        hosts: all
+        become: yes
+        tasks:
+          - name: Install package
+            package:
+              name: nginx
+            tags:
+              - install
+        handlers:
+          - name: restart service
+            service:
+              name: nginx
+              state: restarted
+    `;
+
+    const result = checkBestPractices(content);
+    // May have fewer warnings for well-formed playbooks
+    expect(result.warnings.some(w => w.includes('become'))).toBe(false);
+    expect(result.warnings.some(w => w.includes('tags'))).toBe(false);
   });
 });
 
@@ -300,13 +340,21 @@ describe('Best Practices Validation', () => {
 
 describe('Retry Logic', () => {
   test('should implement exponential backoff', () => {
-    const baseDelay = 1000;
-    const delays = [1, 2, 3].map(attempt => baseDelay * Math.pow(2, attempt - 1));
+    const delays = [1, 2, 3].map(attempt => calculateBackoff(attempt));
     expect(delays).toEqual([1000, 2000, 4000]);
   });
 
-  test('should respect max retries', async () => {
-    const maxRetries = 3;
+  test('should cap backoff at max delay', () => {
+    const delay = calculateBackoff(10, { ...DEFAULT_RETRY_CONFIG, maxDelayMs: 5000 });
+    expect(delay).toBe(5000);
+  });
+
+  test('should use custom retry config', () => {
+    const delay = calculateBackoff(1, { maxRetries: 3, baseDelayMs: 500, maxDelayMs: 4000 });
+    expect(delay).toBe(500);
+  });
+
+  test('should respect max retries with withRetry', async () => {
     let attempts = 0;
 
     const operation = async () => {
@@ -314,20 +362,34 @@ describe('Retry Logic', () => {
       throw new Error('Simulated failure');
     };
 
-    try {
-      for (let i = 0; i < maxRetries; i++) {
-        try {
-          await operation();
-          break;
-        } catch (e) {
-          if (i === maxRetries - 1) throw e;
-        }
-      }
-    } catch (e) {
-      // Expected to throw after max retries
-    }
+    await expect(withRetry(operation, {
+      maxRetries: 3,
+      baseDelayMs: 10, // Use short delay for tests
+      maxDelayMs: 50,
+    })).rejects.toThrow('Simulated failure');
 
-    expect(attempts).toBe(maxRetries);
+    expect(attempts).toBe(3);
+  });
+
+  test('should succeed on retry', async () => {
+    let attempts = 0;
+
+    const operation = async () => {
+      attempts++;
+      if (attempts < 2) {
+        throw new Error('Temporary failure');
+      }
+      return 'success';
+    };
+
+    const result = await withRetry(operation, {
+      maxRetries: 3,
+      baseDelayMs: 10,
+      maxDelayMs: 50,
+    });
+
+    expect(result).toBe('success');
+    expect(attempts).toBe(2);
   });
 });
 
@@ -337,25 +399,24 @@ describe('Retry Logic', () => {
 
 describe('Metrics', () => {
   test('should have correct metric names', () => {
-    const expectedMetrics = [
-      'ansible_mcp_playbooks_generated_total',
-      'ansible_mcp_playbooks_executed_total',
-      'ansible_mcp_validation_errors_total',
-      'ansible_mcp_execution_duration_seconds',
-      'ansible_mcp_secrets_detected_total',
-      'ansible_mcp_auth_failures_total',
-      'ansible_mcp_active_connections',
-    ];
+    // Test actual production metric names
+    const metricNames = Object.values(METRIC_NAMES);
 
-    // Verify metric names follow Prometheus naming conventions
-    expectedMetrics.forEach(name => {
-      expect(name).toMatch(/^[a-z][a-z0-9_]*$/);
+    expect(metricNames).toContain('ansible_mcp_playbooks_generated_total');
+    expect(metricNames).toContain('ansible_mcp_playbooks_executed_total');
+    expect(metricNames).toContain('ansible_mcp_validation_errors_total');
+    expect(metricNames).toContain('ansible_mcp_execution_duration_seconds');
+
+    // Verify all metric names follow Prometheus naming conventions
+    metricNames.forEach(name => {
+      expect(isValidMetricName(name)).toBe(true);
       expect(name).toContain('ansible_mcp');
     });
   });
 
   test('should have appropriate histogram buckets', () => {
-    const buckets = [0.1, 0.5, 1, 5, 10, 30, 60, 120, 300];
+    // Test actual production histogram buckets
+    const buckets = HISTOGRAM_BUCKETS;
 
     // Verify buckets are in ascending order
     for (let i = 1; i < buckets.length; i++) {
@@ -375,6 +436,13 @@ describe('Metrics', () => {
     if (lastBucket !== undefined) {
       expect(lastBucket).toBeGreaterThanOrEqual(60);
     }
+  });
+
+  test('should validate metric name format', () => {
+    expect(isValidMetricName('ansible_mcp_test')).toBe(true);
+    expect(isValidMetricName('valid123_name')).toBe(true);
+    expect(isValidMetricName('Invalid-Name')).toBe(false);
+    expect(isValidMetricName('123starts_with_number')).toBe(false);
   });
 });
 
