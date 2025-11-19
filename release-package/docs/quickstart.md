@@ -45,8 +45,9 @@ AI_PROVIDER=openai
 OPENAI_API_KEY=your-key-here
 EOF
 
-# Generate JWT secret
-sed -i "s|\$(openssl rand -base64 32)|$(openssl rand -base64 32)|" .env
+# Generate JWT secret (cross-platform: works on macOS and Linux)
+JWT_SECRET=$(openssl rand -base64 32)
+sed "s|JWT_SECRET=.*|JWT_SECRET=$JWT_SECRET|" .env > .env.tmp && mv .env.tmp .env
 ```
 
 **Note:** Replace `your-key-here` with your actual OpenAI API key. Skip AI_PROVIDER settings if you don't have one - the server will use templates instead.

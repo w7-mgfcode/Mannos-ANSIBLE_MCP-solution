@@ -232,8 +232,9 @@ OPENAI_API_KEY=sk-your-openai-key
 EOF
 
 # Generate secure JWT secret (IMPORTANT!)
+# Cross-platform approach: works on both macOS and Linux
 JWT_SECRET=$(openssl rand -base64 32)
-sed -i "s|JWT_SECRET=.*|JWT_SECRET=$JWT_SECRET|" .env
+sed "s|JWT_SECRET=.*|JWT_SECRET=$JWT_SECRET|" .env > .env.tmp && mv .env.tmp .env
 
 echo "Environment configured. JWT_SECRET generated."
 ```
