@@ -93,25 +93,96 @@ export class AnthropicProvider extends AIProvider {
 
   private async makeRequest(body: any): Promise<AnthropicResponse> {
     const url = `${this.baseURL}/messages`;
+    const maxRetries = this.config.maxRetries || 3;
+    const timeout = this.config.timeout || 60000;
 
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': this.config.apiKey,
-        'anthropic-version': this.apiVersion,
-      },
-      body: JSON.stringify(body),
-    });
+    let lastError: Error | null = null;
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(
-        `Anthropic API request failed: ${response.status} ${response.statusText} - ${JSON.stringify(errorData)}`
-      );
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      // Apply backoff for retries (0, 1s, 2s, 4s...)
+      if (attempt > 0) {
+        const backoffMs = Math.min(1000 * Math.pow(2, attempt - 1), 8000);
+        await new Promise(resolve => setTimeout(resolve, backoffMs));
+      }
+
+      // Create AbortController for timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+      try {
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': this.config.apiKey,
+            'anthropic-version': this.apiVersion,
+          },
+          body: JSON.stringify(body),
+          signal: controller.signal,
+        });
+
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          const sanitizedError = this.sanitizeErrorResponse(response.status, errorData);
+
+          // Retry on transient errors (429, 500, 502, 503, 504)
+          if ([429, 500, 502, 503, 504].includes(response.status) && attempt < maxRetries - 1) {
+            lastError = new Error(sanitizedError);
+            continue;
+          }
+
+          throw new Error(sanitizedError);
+        }
+
+        return await response.json() as AnthropicResponse;
+      } catch (error) {
+        clearTimeout(timeoutId);
+
+        // Handle timeout/abort errors
+        if (error instanceof Error && error.name === 'AbortError') {
+          lastError = new Error(`Request timeout after ${timeout}ms`);
+          if (attempt < maxRetries - 1) {
+            continue;
+          }
+          throw lastError;
+        }
+
+        // Handle network errors (retry)
+        if (error instanceof TypeError && error.message.includes('fetch')) {
+          lastError = new Error('Network error: Unable to reach Anthropic API');
+          if (attempt < maxRetries - 1) {
+            continue;
+          }
+          throw lastError;
+        }
+
+        throw error;
+      }
     }
 
-    return await response.json() as AnthropicResponse;
+    throw lastError || new Error('Request failed after maximum retries');
+  }
+
+  /**
+   * Sanitize error response to avoid exposing sensitive data
+   */
+  private sanitizeErrorResponse(status: number, errorData: any): string {
+    // Extract only safe, high-level error fields
+    const errorType = errorData?.error?.type || errorData?.type || 'unknown_error';
+    let errorMessage = errorData?.error?.message || errorData?.message || 'Unknown error';
+
+    // Truncate error message to avoid exposing user content
+    const maxMessageLength = 200;
+    if (errorMessage.length > maxMessageLength) {
+      errorMessage = errorMessage.substring(0, maxMessageLength) + '...';
+    }
+
+    // Remove any potential user content patterns from error message
+    errorMessage = errorMessage.replace(/["'].*?["']/g, '"[redacted]"');
+
+    return `Anthropic API error (${status}): ${errorType} - ${errorMessage}`;
   }
 
   private parseResponse(response: AnthropicResponse): AIGenerationResult {
